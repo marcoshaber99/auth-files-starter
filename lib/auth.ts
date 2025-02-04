@@ -7,7 +7,6 @@ export const auth = betterAuth({
   appName: "Auth Starter",
   emailAndPassword: {
     enabled: true,
-    requireEmailVerification: false, // Disabled for now
   },
   database: drizzleAdapter(db, {
     provider: "pg",
@@ -18,12 +17,4 @@ export const auth = betterAuth({
       verification: schema.verification,
     },
   }),
-  user: {
-    changeEmail: {
-      enabled: true,
-    },
-    deleteUser: {
-      enabled: true,
-    },
-  },
 });

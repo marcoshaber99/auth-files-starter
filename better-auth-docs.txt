@@ -1,0 +1,4311 @@
+Introduction
+Better Auth is a framework-agnostic authentication (and authorization) framework for TypeScript. It provides a comprehensive set of features out of the box and includes a plugin ecosystem that simplifies adding advanced functionalities. Whether you need 2FA, multi-tenant support, or other auth-related features, it lets you focus on building your actual application instead of reinventing the wheel.
+
+Why Better Auth?
+Authentication in the TypeScript ecosystem is a half-solved problem. Other open-source libraries often require a lot of additional code for anything beyond basic authentication. Rather than just pushing third-party services as the solution, I believe we can do better as a community—hence, Better Auth.
+
+Features
+Better Auth aims to be the most comprehensive auth library. It provides a wide range of features out of the box and allows you to extend it with plugins. Here are some of the features:
+
+Framework Agnostic
+
+Support for most popular frameworks
+
+Email & Password
+
+Built-in support for secure email and password authentication
+
+Account & Session Management
+
+Manage user accounts and sessions with ease
+
+Built In Rate Limiter
+
+Built in rate limiter with custom rules
+
+Automatic Database Management
+
+Automatic database management and migrations
+
+Social Sign-on
+
+multiple social sign-on providers
+
+Organization & Access Control
+
+Manage organizations and access control
+
+Two Factor Authentication
+
+Secure your users with two factor authentication
+
+Plugin Ecosystem
+
+Even more capabilities with plugins
+
+...and much more, with even more to come!
+
+
+
+Comparison
+Comparison is the thief of joy. — Kanye West
+
+Here are non detailed reasons why you may want to use Better Auth over other auth libraries and services.
+
+vs Other Auth Libraries
+You need more features from your auth library.
+We support almost all frameworks out of the box.
+You need advanced features like two-factor authentication, multi-tenancy, multi-session, admin tools, rate limiting, etc.
+You want to have more control over your auth flow.
+You prefer more comprehensive documentation.
+You like the idea of a plugin system to extend the library.
+You want to use a library that is actively maintained and has a growing community.
+vs Self Hosted Auth Server
+You want to keep your users in your main database (the same database as your app).
+You need more control over your auth flow.
+You don't want the hassle of self-hosting your auth server.
+And there's a high possibility that we already cover the features you need. Additionally, you can always extend it using our plugin system.
+vs Managed Auth Services (Paid)
+You don't want to give up user data to a third party.
+You want a single source of truth for your users.
+$$$ - You don't want to pay for every user.
+You want to keep your users in your own database (the same database as your app).
+vs Roll Your Own Auth
+You don't want to maintain a lot of code that isn't your core business.
+You want to delegate the security to a community of people who probably care more than you do.
+We probably cover most of the features you'll need, and you can always extend it using our plugin system.
+
+
+Installation
+Install the Package
+Let's start by adding Better Auth to your project:
+
+npm
+pnpm
+yarn
+bun
+
+npm install better-auth
+If you're using a separate client and server setup, make sure to install Better Auth in both parts of your project.
+
+Set Environment Variables
+Create a .env file in the root of your project and add the following environment variables:
+
+Secret Key
+Random value used by the library for encryption and generating hashes. You can generate one using the button below or you can use something like openssl.
+
+.env
+
+BETTER_AUTH_SECRET=
+Generate Secret
+Set Base URL
+.env
+
+BETTER_AUTH_URL=http://localhost:3000 #Base URL of your app
+Create A Better Auth Instance
+Create a file named auth.ts in one of these locations:
+
+Project root
+lib/ folder
+utils/ folder
+You can also nest any of these folders under src/, app/ or server/ folder. (e.g. src/lib/auth.ts, app/lib/auth.ts).
+
+And in this file, import Better Auth and create your auth instance. Make sure to export the auth instance with the variable name auth or as a default export.
+
+auth.ts
+
+import { betterAuth } from "better-auth";
+ 
+export const auth = betterAuth({
+    //...
+})
+Configure Database
+Better Auth requires a database to store user data. You can easily configure Better Auth to use SQLite, PostgreSQL, or MySQL, with Kysely handling queries and migrations for these databases.
+
+sqlite
+postgres
+mysql
+auth.ts
+
+import { betterAuth } from "better-auth";
+import { Pool } from "pg";
+ 
+export const auth = betterAuth({
+    database: new Pool({
+        // connection options
+    })
+})
+You can also provide any Kysely dialect or a Kysely instance to the database option.
+
+Example with LibsqlDialect:
+
+auth.ts
+
+import { betterAuth } from "better-auth";
+import { LibsqlDialect } from "@libsql/kysely-libsql";
+ 
+const dialect = new LibsqlDialect({
+    url: process.env.TURSO_DATABASE_URL || "",
+    authToken: process.env.TURSO_AUTH_TOKEN || "",
+})
+ 
+export const auth = betterAuth({
+  database: {
+    dialect,
+    type: "sqlite"
+  }
+});
+Adapters
+
+If you prefer to use an ORM or if your database is not supported by Kysely, you can use one of the built-in adapters.
+
+
+drizzle
+
+auth.ts
+
+import { betterAuth } from "better-auth";
+import { drizzleAdapter } from "better-auth/adapters/drizzle";
+import { db } from "@/db"; // your drizzle instance
+ 
+export const auth = betterAuth({
+    database: drizzleAdapter(db, {
+        provider: "pg", // or "mysql", "sqlite"
+    })
+});
+Create Database Tables
+Better Auth includes a CLI tool to help manage the schema required by the library.
+
+Generate: This command generates an ORM schema or SQL migration file.
+If you're using Kysely, you can apply the migration directly with migrate command below. Use generate only if you plan to apply the migration manually.
+
+Terminal
+
+npx @better-auth/cli generate
+Migrate: This command creates the required tables directly in the database. (Available only for the built-in Kysely adapter)
+Terminal
+
+npx @better-auth/cli migrate
+see the CLI documentation for more information.
+
+If you instead want to create the schema manually, you can find the core schema required in the database section.
+
+Authentication Methods
+Configure the authentication methods you want to use. Better Auth comes with built-in support for email/password, and social sign-on providers.
+
+auth.ts
+
+import { betterAuth } from "better-auth"
+ 
+export const auth = betterAuth({
+    //...other options
+    emailAndPassword: {  
+        enabled: true
+    },
+    socialProviders: { 
+       github: { 
+        clientId: process.env.GITHUB_CLIENT_ID, 
+        clientSecret: process.env.GITHUB_CLIENT_SECRET, 
+       } 
+    }, 
+});
+You can use even more authentication methods like passkey, username, magic link and more through plugins.
+
+Mount Handler
+To handle api requests, you need to set up a route handler on your server.
+
+Create a new file or route in your framework's designated catch-all route handler. This route should handle requests for the path /api/auth/* (unless you've configured a different base path).
+
+Better Auth supports any backend framework with standard Request and Response objects and offers helper functions for popular frameworks.
+
+next-js
+
+/app/api/auth/[...all]/route.ts
+
+import { auth } from "@/lib/auth"; // path to your auth file
+import { toNextJsHandler } from "better-auth/next-js";
+ 
+export const { POST, GET } = toNextJsHandler(auth);
+Create Client Instance
+The client-side library helps you interact with the auth server. Better Auth comes with a client for all the popular web frameworks, including vanilla JavaScript.
+
+Import createAuthClient from the package for your framework (e.g., "better-auth/react" for React).
+Call the function to create your client.
+Pass the base url of your auth server. (If the auth server is running on the same domain as your client, you can skip this step.)
+If you're using a different base path other than /api/auth make sure to pass the whole url including the path. (e.g. http://localhost:3000/custom-path/auth)
+
+react
+
+lib/auth-client.ts
+
+import { createAuthClient } from "better-auth/react"
+export const authClient = createAuthClient({
+    baseURL: "http://localhost:3000" // the base url of your auth server
+})
+Tip: You can also export specific methods if you prefer:
+
+
+export const { signIn, signUp, useSession } = createAuthClient()
+🎉 That's it!
+That's it! You're now ready to use better-auth in your application. Continue to basic usage to learn how to use the auth instance to sign in users.
+
+
+
+
+
+
+
+
+Basic Usage
+Better Auth provides built-in authentication support for:
+
+Email and password
+Social provider (Google, GitHub, Apple, and more)
+You can extend authentication options using plugins, such as: Username-based login, Passkeys, Email magic links, and more.
+
+Email & Password
+To enable email and password authentication:
+
+auth.ts
+
+import { betterAuth } from "better-auth"
+ 
+export const auth = betterAuth({
+    //...rest of the options
+    emailAndPassword: {    
+        enabled: true
+    } 
+})
+Sign Up
+Before a user can sign in, they need to sign up. To sign up a user using email and password, you need to call the client method signUp.email with the user's information.
+
+You can pass the following properties to the signUp.email method:
+
+email: the user's email address
+password: the user's password
+name: the user's display name
+image: the user's image url (optional)
+callbackURL: a callbackURL if email verification is enabled.
+Example: Using React
+
+SignUp.tsx
+
+"use client"
+import { authClient } from "@/lib/auth-client"; //import the auth client
+import { useState } from 'react';
+ 
+export default function SignUp() {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [name, setName] = useState('');
+  const [image, setImage] = useState<File | null>(null);
+ 
+  const signUp = async () => {
+    const { data, error } = await authClient.signUp.email({ 
+        email, 
+        password, 
+        name, 
+        image: image ? convertImageToBase64(image) : undefined, 
+     }, { 
+        onRequest: (ctx) => { 
+         //show loading
+        }, 
+        onSuccess: (ctx) => { 
+          //redirect to the dashboard
+        }, 
+        onError: (ctx) => { 
+          alert(ctx.error.message); 
+        }, 
+      }); 
+  };
+ 
+  return (
+    <div>
+      <input type="name" value={name} onChange={(e) => setName(e.target.value)} />
+      <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} />
+      <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
+      <input type="file" onChange={(e) => setImage(e.target.files?.[0])} />
+      <button onClick={signUp}>Sign Up</button>
+    </div>
+  );
+}
+By default, the user is automatically signed in after signing up. This behaviour can be changed by configuring your auth-config
+
+
+import { betterAuth } from "better-auth"
+ 
+export const auth = betterAuth({
+    //...rest of the options
+    emailAndPassword: {
+    	enabled: true,
+    	autoSignIn: false //defaults to true
+  },
+})
+Sign In
+To sign a user in, you can use the signIn.email function provided by the client. The signIn function takes an object with the following properties:
+
+email: the user's email address
+password: the user's password
+Example: Using Svelte
+
+signin.svelte
+
+<script lang="ts">
+import { authClient } from "$lib/auth-client"; //import the auth client
+import { writable } from "svelte/store";
+ 
+const email = writable("");
+const password = writable("");
+ 
+const handleSignIn = async () => {
+    await authClient.signIn.email({ 
+        email: $email, 
+        password: $password, 
+    }, { 
+        onRequest: () => { 
+            //show loading
+        }, 
+        onSuccess: () => { 
+            //redirect to dashboard
+        }, 
+        onError: (ctx) => { 
+            alert(ctx.error.message) 
+        } 
+    }) 
+}
+</script>
+ 
+<div>
+    <input type="email" bind:value={$email} />
+    <input type="password" bind:value={$password} />
+    <button on:click={handleSignIn}>
+      Sign In
+    </button>
+</div>
+Social Sign-On
+Better Auth supports multiple social providers, including Google, GitHub, Apple, Discord, and more. To use a social provider, you need to configure the ones you need in the socialProviders option on your auth object.
+
+auth.ts
+
+import { betterAuth } from "better-auth"
+import { github } from "better-auth/social-providers"
+ 
+export const auth = betterAuth({
+    //...rest of the options
+    socialProviders: { 
+        github: { 
+            clientId: process.env.GITHUB_CLIENT_ID!, 
+            clientSecret: process.env.GITHUB_CLIENT_SECRET!, 
+        } 
+    }, 
+})
+Signin with social providers
+To sign in using a social provider you need to call signIn.social. It takes an object with the following properties:
+
+provider: the social provider name (e.g. github, google, apple, etc.)
+callbackURL: the URL to redirect to after the user authenticates with the provider. (default to "/")
+errorCallbackURL: the URL to redirect to if an error occurs during the sign in process. (optional)
+newUserCallbackURL: the URL to redirect to if the user is newly registered. (optional)
+disableRedirect: a boolean to disable the automatic redirect to the provider. This is useful when you want to show for example a popup. (optional)
+and more options to do idToken authentication.
+
+Example: Using Vue
+
+signin.vue
+
+<script>
+import { authClient } from "@/auth-client"; //import the auth client
+ 
+export default {
+  name: "SignIn",
+  methods: {
+    async handleSignIn() {
+        await authClient.signIn.social({ 
+            provider: "github", 
+            callbackURL: "/dashboard", //redirect to dashboard after sign in
+        }); 
+    }
+  }
+};
+</script>
+ 
+<template>
+  <div>
+    <h2>Sign In</h2>
+    <button @click="handleSignIn">Sign In with GitHub</button>
+  </div>
+</template>
+Signout
+To signout a user, you can use the signOut function provided by the client.
+
+user-card.tsx
+
+await authClient.signOut();
+you can pass fetchOptions to redirect onSuccess
+
+user-card.tsx
+
+await authClient.signOut({
+  fetchOptions: {
+    onSuccess: () => {
+      router.push("/login"); // redirect to login page
+    },
+  },
+});
+Session Management
+Once a user is signed in, you'll want to access the user session. Better Auth allows you easily to access the session data from the server and client side.
+
+Client Side
+Better Auth provides a useSession hook to easily access session data on the client side. This hook is implemented using nanostore and has support for each supported framework and vanilla client, ensuring that any changes to the session (such as signing out) are immediately reflected in your UI.
+
+It has the following properties:
+
+data: the actual session data which includes session and user object.
+isPending: a boolean that indicates whether the session is being loaded.
+error: an error object that contains any errors that occurred while loading the session.
+React
+Vue
+Svelte
+Solid
+Vanilla
+user.tsx
+
+import { authClient } from "@/lib/auth-client" // import the auth client
+ 
+export function User(){
+ 
+    const { 
+        data: session, 
+        isPending, //loading state
+        error //error object
+    } = authClient.useSession() 
+ 
+    return (
+        //...
+    )
+}
+For more details check session-management documentation.
+
+Server Side
+The server provides a session object that you can use to access the session data. It requires request headers object to be passed to the getSession method.
+
+Example: Using some popular frameworks
+
+NextJs
+Nuxt
+Svelte
+Astro
+Hono
+TanStack
+server.ts
+
+import { auth } from "./auth"; // path to your Better Auth server instance
+import { headers } from "next/headers";
+ 
+const session = await auth.api.getSession({
+    headers: await headers() // you need to pass the headers object.
+})
+Using Plugins
+One of the unique features of Better Auth is a plugins ecosystem. It allows you to add complex auth related functionality with small lines of code.
+
+Below is an example of how to add two factor authentication using two factor plugin.
+
+Server Configuration
+To add a plugin, you need to import the plugin and pass it to the plugins option of the auth instance. For example, to add two factor authentication, you can use the following code:
+
+auth.ts
+
+import { betterAuth } from "better-auth"
+import { twoFactor } from "better-auth/plugins"
+ 
+export const auth = betterAuth({
+    //...rest of the options
+    plugins: [ 
+        twoFactor() 
+    ] 
+})
+now two factor related routes and method will be available on the server.
+
+Migrate Database
+After adding the plugin, you'll need to add the required tables to your database. You can do this by running the migrate command, or by using the generate command to create the schema and handle the migration manually.
+
+generating the schema:
+
+terminal
+
+npx @better-auth/cli generate
+using the migrate command:
+
+terminal
+
+npx @better-auth/cli migrate
+If you prefer adding the schema manually, you can check the schema required on the two factor plugin documentation.
+
+Client Configuration
+Once we're done with the server, we need to add the plugin to the client. To do this, you need to import the plugin and pass it to the plugins option of the auth client. For example, to add two factor authentication, you can use the following code:
+
+auth-client.ts
+
+import { createAuthClient } from "better-auth/client";
+import { twoFactorClient } from "better-auth/client/plugins"; 
+ 
+const authClient = createAuthClient({
+    plugins: [ 
+        twoFactorClient({ 
+            twoFactorPage: "/two-factor" // the page to redirect if a user need to verify 2nd factor
+        }) 
+    ] 
+})
+now two factor related methods will be available on the client.
+
+profile.ts
+
+import { authClient } from "./auth-client"
+ 
+const enableTwoFactor = async() => {
+    const data = await authClient.twoFactor.enable({
+        password // the user password is required
+    }) // this will enable two factor
+}
+ 
+const disableTwoFactor = async() => {
+    const data = await authClient.twoFactor.disable({
+        password // the user password is required
+    }) // this will disable two factor
+}
+ 
+const signInWith2Factor = async() => {
+    const data = await authClient.signIn.email({
+        //...
+    })
+    //if the user has two factor enabled, it will redirect to the two factor page
+}
+ 
+const verifyTOTP = async() => {
+    const data = await authClient.twoFactor.verifyTOTP({
+        code: "123456", // the code entered by the user 
+        /**
+         * If the device is trusted, the user won't
+         * need to pass 2FA again on the same device
+         */
+        trustDevice: true
+    })
+}
+Next step: See the the two factor plugin documentation.
+
+
+
+
+
+
+API
+When you create a new Better Auth instance, it gives you an api object. This object provides functions to interact with the server while your code is running server-side. You can use these functions to call any API endpoint on the server.
+
+Any endpoint added to Better Auth, whether from plugins or the core, will be accessible through the api object.
+
+Calling API Endpoints on the Server
+To call an API endpoint on the server, import your auth instance and call the endpoint using the api object.
+
+server.ts
+
+import { betterAuth } from "better-auth";
+import { headers } from "next/headers";
+ 
+export const auth = betterAuth({
+    //...
+})
+ 
+// calling get session on the server
+await auth.api.getSession({
+    headers: headers()
+})
+Unlike the client, the server needs the values to be passed as an object with the key body for the body, headers for the headers, and query for the query.
+
+server.ts
+
+await auth.api.signInEmail({
+    body: {
+        email: "",
+        password: ""
+    }
+})
+Better auth API endpoints are built on top of better-call, a tiny web framework that lets you call REST API endpoints as if they were regular functions and allows us to easily infer client types from the server.
+
+Getting the Response Object
+When you invoke an API endpoint on the server, it will return a standard JavaScript object or array directly. To get the Response object instead, you can use the asResponse option.
+
+server.ts
+
+const response = await auth.api.signInEmail({
+    body: {
+        email: "",
+        password: ""
+    },
+    asResponse: true
+})
+Error Handling
+When you call an API endpoint in the server, it will throw an error if the request fails. You can catch the error and handle it as you see fit. The error instance is an instance of APIError.
+
+server.ts
+
+import { APIError } from "better-auth/api";
+ 
+try {
+    await auth.api.signInEmail({
+        body: {
+            email: "",
+            password: ""
+        }
+    })
+} catch (error) {
+    if (error instanceof APIError) {
+        console.log(error.message, error.status)
+    }
+}
+
+
+
+
+
+CLI
+Better Auth comes with a built-in CLI to help you manage the database schema needed for both core functionality and plugins.
+
+Generate
+The generate command creates the schema required by Better Auth. If you're using a database adapter like Prisma or Drizzle, this command will generate the right schema for your ORM. If you're using the built-in Kysely adapter, it will generate an SQL file you can run directly on your database.
+
+Terminal
+
+npx @better-auth/cli@latest generate
+Options
+--output - Where to save the generated schema. For Prisma, it will be saved in prisma/schema.prisma. For Drizzle, it goes to schema.ts in your project root. For Kysely, it’s an SQL file saved as schema.sql in your project root.
+--config - The path to your Better Auth config file. By default, the CLI will search for a better-auth.ts file in ./, ./utils, ./lib, or any of these directories under src directory.
+--y - Skip the confirmation prompt and generate the schema directly.
+Migrate
+The migrate command applies the Better Auth schema directly to your database. This is available if you’re using the built-in Kysely adapter.
+
+Terminal
+
+npx @better-auth/cli@latest migrate
+Options
+--config - The path to your Better Auth config file. By default, the CLI will search for a better-auth.ts file in ./, ./utils, ./lib, or any of these directories under src directory.
+--y - Skip the confirmation prompt and apply the schema directly.
+Common Issues
+Error: Cannot find module X
+
+If you see this error, it means the CLI can’t resolve imported modules in your Better Auth config file. We're working on a fix for many of these issues, but in the meantime, you can try the following:
+
+Remove any import aliases in your config file and use relative paths instead. After running the CLI, you can revert to using aliases.
+Secret
+The CLI also provides a way to generate a secret key for your Better Auth instance.
+
+Terminal
+
+npx @better-auth/cli@latest secret
+
+
+
+
+Client
+Better Auth offers a client library compatible with popular frontend frameworks like React, Vue, Svelte, and more. This client library includes a set of functions for interacting with the Better Auth server. Each framework's client library is built on top of a core client library that is framework-agnostic, so that all methods and hooks are consistently available across all client libraries.
+
+Installation
+If you haven't already, install better-auth.
+
+npm
+pnpm
+yarn
+bun
+
+npm i better-auth
+Create Client Instance
+Import createAuthClient from the package for your framework (e.g., "better-auth/react" for React). Call the function to create your client. Pass the base URL of your auth server. If the auth server is running on the same domain as your client, you can skip this step.
+
+If you're using a different base path other than /api/auth, make sure to pass the whole URL, including the path. (e.g., http://localhost:3000/custom-path/auth)
+
+react
+vue
+svelte
+solid
+vanilla
+lib/auth-client.ts
+
+import { createAuthClient } from "better-auth/react"
+export const authClient =  createAuthClient({
+    baseURL: "http://localhost:3000" // the base url of your auth server
+})
+Usage
+Once you've created your client instance, you can use the client to interact with the Better Auth server. The client provides a set of functions by default and they can be extended with plugins.
+
+Example: Sign In
+
+auth-client.ts
+
+import { createAuthClient } from "better-auth/client"
+const authClient =  createAuthClient()
+ 
+await authClient.signIn.email({
+    email: "test@user.com",
+    password: "password1234"
+})
+Hooks
+On top of normal methods, the client provides hooks to easily access different reactive data. Every hook is available in the root object of the client and they all start with use.
+
+Example: useSession
+
+React
+Vue
+Svelte
+Solid
+user.tsx
+
+//make sure you're using the react client
+import { createAuthClient } from "better-auth/react"
+const { useSession } = createAuthClient() 
+ 
+export function User() {
+    const {
+        data: session,
+        isPending, //loading state
+        error //error object 
+    } = useSession()
+    return (
+        //...
+    )
+}
+Fetch Options
+The client uses a library called better fetch to make requests to the server.
+
+Better fetch is a wrapper around the native fetch API that provides a more convenient way to make requests. It's created by the same team behind Better Auth and is designed to work seamlessly with it.
+
+You can pass any default fetch options to the client by passing fetchOptions object to the createAuthClient.
+
+auth-client.ts
+
+import { createAuthClient } from "better-auth/client"
+ 
+const authClient =  createAuthClient({
+    fetchOptions: {
+        //any better-fetch options
+    },
+})
+You can also pass fetch options to most of the client functions. Either as the second argument or as a property in the object.
+
+auth-client.ts
+
+await authClient.signIn.email({
+    email: "email@email.com",
+    password: "password1234",
+}, {
+    onSuccess(ctx) {
+            //      
+    }
+})
+ 
+//or
+ 
+await authClient.signIn.email({
+    email: "email@email.com",
+    password: "password1234",
+    fetchOptions: {
+        onSuccess(ctx) {
+            //      
+        }
+    },
+})
+Handling Errors
+Most of the client functions return a response object with the following properties:
+
+data: The response data.
+error: The error object if there was an error.
+the error object contains the following properties:
+
+message: The error message. (e.g., "Invalid email or password")
+status: The HTTP status code.
+statusText: The HTTP status text.
+auth-client.ts
+
+const { data, error } = await authClient.signIn.email({
+    email: "email@email.com",
+    password: "password1234"
+})
+if (error) {
+    //handle error
+}
+If the actions accepts a fetchOptions option, you can pass onError callback to handle errors.
+
+auth-client.ts
+
+ 
+await authClient.signIn.email({
+    email: "email@email.com",
+    password: "password1234",
+}, {
+    onError(ctx) {
+        //handle error
+    }
+})
+ 
+//or
+await authClient.signIn.email({
+    email: "email@email.com",
+    password: "password1234",
+    fetchOptions: {
+        onError(ctx) {
+            //handle error
+        }
+    }
+})
+Hooks like useSession also return an error object if there was an error fetching the session. On top of that, they also return a isPending property to indicate if the request is still pending.
+
+auth-client.ts
+
+const { data, error, isPending } = useSession()
+if (error) {
+    //handle error
+}
+Error Codes
+The client instance contains $ERROR_CODES object that contains all the error codes returned by the server. You can use this to handle error translations or custom error messages.
+
+auth-client.ts
+
+const authClient = createAuthClient();
+ 
+type ErrorTypes = Partial<
+	Record<
+		keyof typeof client.$ERROR_CODES,
+		{
+			en: string;
+			es: string;
+		}
+	>
+>;
+ 
+const errorCodes = {
+	USER_ALREADY_EXISTS: {
+		en: "user already registered",
+		es: "usuario ya registrada",
+	},
+} satisfies ErrorTypes;
+ 
+const getErrorMessage = (code: string, lang: "en" | "es") => {
+	if (code in errorCodes) {
+		return errorCodes[code as keyof typeof errorCodes][lang];
+	}
+	return "";
+};
+ 
+ 
+const { error } = await authClient.signUp.email({
+	email: "user@email.com",
+	password: "password",
+	name: "User",
+});
+if(error?.code){
+    alert(getErrorMessage(error.code), "en");
+}
+Plugins
+You can extend the client with plugins to add more functionality. Plugins can add new functions to the client or modify existing ones.
+
+Example: Magic Link Plugin
+
+auth-client.ts
+
+import { createAuthClient } from "better-auth/client"
+import { magicLinkClient } from "better-auth/client/plugins"
+ 
+const authClient =  createAuthClient({
+    plugins: [
+        magicLinkClient()
+    ]
+})
+once you've added the plugin, you can use the new functions provided by the plugin.
+
+auth-client.ts
+
+await authClient.signIn.magicLink({
+    email: "test@email.com"
+})
+
+
+
+
+
+Cookies
+Cookies are used to store data such as session tokens, OAuth state, and more. All cookies are signed using the secret key provided in the auth options.
+
+Cookie Prefix
+Better Auth cookies will follow ${prefix}.${cookie_name} format by default. The prefix will be "better-auth" by default. You can change the prefix by setting cookiePrefix in the advanced object of the auth options.
+
+auth.ts
+
+import { betterAuth } from "better-auth"
+ 
+export const auth = betterAuth({
+    advanced: {
+        cookiePrefix: "my-app"
+    }
+})
+Custom Cookies
+All cookies are httpOnly and secure if the server is running in production mode.
+
+If you want to set custom cookie names and attributes, you can do so by setting cookieOptions in the advanced object of the auth options.
+
+By default, Better Auth uses the following cookies:
+
+session_token to store the session token
+session_data to store the session data if cookie cache is enabled
+dont_remember to store the dont_remember flag if remember me is disabled
+Plugins may also use cookies to store data. For example, the Two Factor Authentication plugin uses the two_factor cookie to store the two-factor authentication state.
+
+auth.ts
+
+import { betterAuth } from "better-auth"
+ 
+export const auth = betterAuth({
+    advanced: {
+        cookies: {
+            session_token: {
+                name: "custom_session_token",
+                attributes: {
+                    // Set custom cookie attributes
+                }
+            },
+        }
+    }
+})
+Cross Subdomain Cookies
+Sometimes you may need to share cookies across subdomains. For example, if you have app.example.com and example.com, and if you authenticate on example.com, you may want to access the same session on app.example.com.
+
+By default, cookies are not shared between subdomains. However, if you need to access the same session across different subdomains, you can enable cross-subdomain cookies. To enable them, configure crossSubDomainCookies in the advanced object of the auth options.
+
+auth.ts
+
+import { betterAuth } from "better-auth"
+ 
+export const auth = betterAuth({
+    advanced: {
+        crossSubDomainCookies: {
+            enabled: true,
+            domain: "example.com" // Optional. Defaults to the base url domain
+        }
+    }
+})
+Secure Cookies
+By default, cookies are secure only when the server is running in production mode. You can force cookies to be always secure by setting useSecureCookies to true in the advanced object in the auth options.
+
+auth.ts
+
+import { betterAuth } from "better-auth"
+ 
+export const auth = betterAuth({
+    advanced: {
+        useSecureCookies: true
+    }
+})
+
+
+
+
+Database
+Better Auth requires a database connection to store data. It comes with a query builder called Kysely to manage and query your database. The database will be used to store data such as users, sessions, and more. Plugins can also define their own database tables to store data.
+
+You can pass a database connection to Better Auth by passing a supported database instance, a dialect instance or a Kysely instance in the database options.
+
+Example: Sqlite
+
+auth.ts
+
+import { betterAuth } from "better-auth"
+import Database from "better-sqlite3"
+ 
+export const auth = betterAuth({
+    database: new Database("database.sqlite")
+})
+Example: Postgres
+
+auth.ts
+
+import { betterAuth } from "better-auth"
+import { Pool } from "pg"
+ 
+export const auth = betterAuth({
+    database: new Pool({
+        connectionString: "postgres://user:password@localhost:5432/database"
+    })
+})
+Example: MySQL
+
+auth.ts
+
+import { betterAuth } from "better-auth"
+import { createPool } from "mysql2/promise"
+ 
+export const auth = betterAuth({
+    database: createPool({
+        host: "localhost",
+        user: "root",
+        password: "password",
+        database: "database"
+    })
+})
+Example: Custom Dialect using libSQL
+
+auth.ts
+
+import { betterAuth } from "better-auth"
+import { LibsqlDialect } from "@libsql/kysely-libsql";
+ 
+export const auth = betterAuth({
+   	database: {
+      dialect: new LibsqlDialect({
+        url: process.env.TURSO_DATABASE_URL || "",
+        authToken: process.env.TURSO_AUTH_TOKEN || "",
+      }),
+      type: "sqlite" 
+    },
+})
+See Kysely Dialects for more dialects supported by Kysely.
+
+Example: Custom Kysely Instance
+
+auth.ts
+
+import { betterAuth } from "better-auth"
+import { db } from "./db"
+ 
+export const auth = betterAuth({
+    database: {
+      db: db,
+      type: "sqlite" // or "mysql", "postgres" or "mssql"
+    }
+})
+Using Adapters
+If your database is managed by an ORM like Prisma or Drizzle, you can use the corresponding adapter to connect to the database. Better Auth comes with built-in adapters for Prisma and Drizzle. You can pass the adapter to the database object in the auth options.
+
+Prisma Adapter
+The Prisma adapter expects a prisma client instance and a provider key that specifies the database provider to use. The provider key can be sqlite, postgres, mysql, or any other supported by prisma.
+
+auth.ts
+
+import { betterAuth } from "better-auth";
+import { prismaAdapter } from "better-auth/adapters/prisma";
+import { PrismaClient } from "@prisma/client";
+ 
+const prisma = new PrismaClient();
+ 
+export const auth = betterAuth({
+    database: prismaAdapter(prisma, {
+      provider: "sqlite"
+    })
+})
+Drizzle adapter
+The Drizzle adapter expects a drizzle client instance and a provider key that specifies the database provider to use. The provider key can be sqlite, pg or mysql.
+
+auth.ts
+
+import { betterAuth } from "better-auth";
+import { db } from "./drizzle";
+import { drizzleAdapter } from "better-auth/adapters/drizzle";
+ 
+export const auth = betterAuth({
+    database: drizzleAdapter(db, {
+      provider: "sqlite", // or "pg" or "mysql"
+    })
+})
+Mapping Schema
+The Drizzle adapter expects the schema you define to match the table names. For example, if your Drizzle schema maps the user table to users, you need to manually pass the schema and map it to the user table.
+
+
+import { betterAuth } from "better-auth";
+import { db } from "./drizzle";
+import { drizzleAdapter } from "better-auth/adapters/drizzle";
+import { schema } from "./schema";
+ 
+export const auth = betterAuth({
+    database: drizzleAdapter(db, {
+      provider: "sqlite", // or "pg" or "mysql"
+      schema: {
+         ...schema,
+        user: schema.users,
+      },
+      //if all of them are just using plural form, you can just pass the option below
+      usePlural: true
+    })
+})
+MongoDB Adapter
+The MongoDB adapter expects a mongodb client instance and a database name. The adapter will create a new database with the provided name if it doesn't exist.
+
+auth.ts
+
+import { betterAuth } from "better-auth";
+import { MongoClient } from "mongodb";
+import { mongodbAdapter } from "better-auth/adapters/mongodb";
+ 
+const client = new MongoClient("mongodb://localhost:27017/database");
+const db = client.db()
+ 
+export const auth = betterAuth({
+    database: mongodbAdapter(db)
+})
+CLI
+Better Auth comes with a CLI tool to manage database migrations and generate schema.
+
+Running Migrations
+The cli checks your database and prompts you to add missing tables or update existing ones with new columns. This is only supported for the built-in Kysely adapter. For other adapters, you can use the generate command to create the schema and handle the migration through your ORM.
+
+
+npx @better-auth/cli migrate
+Generating Schema
+Better Auth also provides a generate command to generate the schema required by Better Auth. The generate command creates the schema required by Better Auth. If you're using a database adapter like Prisma or Drizzle, this command will generate the right schema for your ORM. If you're using the built-in Kysely adapter, it will generate an SQL file you can run directly on your database.
+
+
+npx @better-auth/cli generate
+See the CLI documentation for more information on the CLI.
+
+If you prefer adding tables manually, you can do that as well. The core schema required by Better Auth is described below and you can find additional schema required by plugins in the plugin documentation.
+
+Secondary Storage
+Secondary storage in Better Auth allows you to use key-value stores for managing session data, rate limiting counters, etc. This can be useful when you want to offload the storage of this intensive records to a high performance storage or even RAM.
+
+Implementation
+To use secondary storage, implement the SecondaryStorage interface:
+
+
+interface SecondaryStorage {
+	get: (key: string) => Promise<string | null>
+	set: (
+		key: string,
+		value: string,
+		ttl?: number,
+	) => Promise<void>;
+	delete: (key: string) => Promise<void>;
+}
+Then, provide your implementation to the betterAuth function:
+
+
+betterAuth({
+	// ... other options
+	secondaryStorage: {
+		// Your implementation here
+	}
+})
+Example: Redis Implementation
+
+Here's a basic example using Redis:
+
+
+import { createClient } from "redis";
+import { betterAuth } from "better-auth";
+ 
+const redis = createClient();
+await redis.connect();
+ 
+export const auth = betterAuth({
+	// ... other options
+	secondaryStorage: {
+		get: async (key) => {
+			const value = await redis.get(key);
+			return value ? value : null;
+		},
+		set: async (key, value, ttl) => {
+			if (ttl) await redis.set(key, value, { EX: ttl });
+			// or for ioredis:
+			// if (ttl) await redis.set(key, value, 'EX', ttl)
+			else await redis.set(key, value);
+		},
+		delete: async (key) => {
+			await redis.del(key),
+		}
+	}
+});
+This implementation allows Better Auth to use Redis for storing session data and rate limiting counters. You can also add prefixes to the keys names.
+
+Core Schema
+Better Auth requires the following tables to be present in the database. The types are in typescript format. You can use corresponding types in your database.
+
+User
+Table Name: user
+
+Field Name	Type	Key	Description
+id	string	PK	Unique identifier for each user
+name	string	-	User's chosen display name
+email	string	-	User's email address for communication and login
+emailVerified	boolean	-	Whether the user's email is verified
+image	string	?	User's image url
+createdAt	Date	-	Timestamp of when the user account was created
+updatedAt	Date	-	Timestamp of the last update to the user's information
+Session
+Table Name: session
+
+Field Name	Type	Key	Description
+id	string	PK	Unique identifier for each session
+userId	string	FK	The id of the user
+token	string	-	The unique session token
+expiresAt	Date	-	The time when the session expires
+ipAddress	string	?	The IP address of the device
+userAgent	string	?	The user agent information of the device
+createdAt	Date	-	Timestamp of when the verification request was created
+updatedAt	Date	-	Timestamp of when the verification request was updated
+Account
+Table Name: account
+
+Field Name	Type	Key	Description
+id	string	PK	Unique identifier for each account
+userId	string	FK	The id of the user
+accountId	string	-	The id of the account as provided by the SSO or equal to userId for credential accounts
+providerId	string	-	The id of the provider
+accessToken	string	?	The access token of the account. Returned by the provider
+refreshToken	string	?	The refresh token of the account. Returned by the provider
+accessTokenExpiresAt	Date	?	The time when the verification request expires
+refreshTokenExpiresAt	Date	?	The time when the verification request expires
+scope	string	?	The scope of the account. Returned by the provider
+idToken	string	?	The id token returned from the provider
+password	string	?	The password of the account. Mainly used for email and password authentication
+createdAt	Date	-	Timestamp of when the verification request was created
+updatedAt	Date	-	Timestamp of when the verification request was updated
+Verification
+Table Name: verification
+
+Field Name	Type	Key	Description
+id	string	PK	Unique identifier for each verification
+identifier	string	-	The identifier for the verification request
+value	string	-	The value to be verified
+expiresAt	Date	-	The time when the verification request expires
+createdAt	Date	-	Timestamp of when the verification request was created
+updatedAt	Date	-	Timestamp of when the verification request was updated
+Custom Tables
+Better Auth allows you to customize the table names and column names for the core schema. You can also extend the core schema by adding additional fields to the user and session tables.
+
+Custom Table Names
+You can customize the table names and column names for the core schema by using the modelName and fields properties in your auth config:
+
+auth.ts
+
+export const auth = betterAuth({
+   user: {
+      modelName: "users",
+      fields: {
+        name: "full_name",
+        email: "email_address"
+      }
+   },
+   session: {
+      modelName: "user_sessions",
+      fields: {
+        userId: "user_id"
+      }
+   }
+})
+Type inference in your code will still use the original field names (e.g., user.name, not user.full_name).
+
+To customize table names and column name for plugins, you can use the schema property in the plugin config:
+
+auth.ts
+
+import { betterAuth } from "better-auth";
+import { twoFactor } from "better-auth/plugins";
+ 
+export const auth = betterAuth({
+    plugins: [
+      twoFactor({
+        schema: {
+          user: {
+            fields: {
+              twoFactorEnabled: "two_factor_enabled",
+              secret: "two_factor_secret",
+            },
+          },
+        },
+      }),
+    ],
+});
+Extending Core Schema
+Better Auth provides a type-safe way to extend the user and session schemas. You can add custom fields to your auth config, and the CLI will automatically update the database schema. These additional fields will be properly inferred in functions like useSession, signUp.email, and other endpoints that work with user or session objects.
+
+To add custom fields, use the additionalFields property in the user or session object of your auth config. The additionalFields object uses field names as keys, with each value being a FieldAttributes object containing:
+
+type: The data type of the field (e.g., "string", "number", "boolean").
+required: A boolean indicating if the field is mandatory.
+defaultValue: The default value for the field (note: this only applies in the JavaScript layer; in the database, the field will be optional).
+input: This determines whether a value can be provided when creating a new record (default: true). If there are additional fields, like role, that should not be provided by the user during signup, you can set this to false.
+Here's an example of how to extend the user schema with additional fields:
+
+auth.ts
+
+import { betterAuth } from "better-auth";
+ 
+export const auth = betterAuth({
+   user: {
+      additionalFields: { 
+          role: {
+             type: "string",
+             required: false,
+             defaultValue: "user",
+             input: false // don't allow user to set role
+          },
+          lang: {
+            type: "string",
+            required: false,
+            defaultValue: "en",
+          }
+      }
+   }
+})
+Now you can access the additional fields in your application logic.
+
+
+//on signup
+const res = await auth.api.signUpEmail({
+    email: "test@example.com",
+    password: "password",
+    name: "John Doe",
+    lang: "fr"
+})
+ 
+//user object
+res.user.role // > "admin"
+res.user.lang // > "fr"
+See the Typescript documentation for more information on how to infer additional fields on the client side.
+
+If you're using social / OAuth providers, you may want to provide mapProfileToUser to map the profile data to the user object. So, you can populate additional fields from the provider's profile.
+
+Example: Mapping Profile to User For firstName and lastName
+
+auth.ts
+
+import { betterAuth } from "better-auth";
+ 
+export const auth = betterAuth({
+   socialProviders: {
+      github: {
+         clientId: "YOUR_GITHUB_CLIENT_ID",
+         clientSecret: "YOUR_GITHUB_CLIENT_SECRET",
+          mapProfileToUser: (profile) => {
+              return {
+                firstName: profile.name.split(" ")[0],
+                lastName: profile.name.split(" ")[1],
+              }
+          }
+      },
+      google: {
+          clientId: "YOUR_GOOGLE_CLIENT_ID",
+          clientSecret: "YOUR_GOOGLE_CLIENT_SECRET",
+          mapProfileToUser: (profile) => {
+              return {
+                firstName: profile.given_name,
+                lastName: profile.family_name,
+              }
+          }
+      }
+    }
+})
+ID Generation
+Better Auth by default will generate unique IDs for users, sessions, and other entities. If you want to customize how IDs are generated, you can configure this in the advanced object in your auth config.
+
+You can also disable ID generation by setting the generateId option to false. This will assume your database will generate the ID automatically.
+
+Example: Automatic Database IDs
+
+auth.ts
+
+import { betterAuth } from "better-auth";
+import { db } from "./db";
+ 
+export const auth = betterAuth({
+   database: {
+      db: db
+   },
+   advanced: {
+      generateId: false,
+   },
+})
+Database Hooks
+Database hooks allow you to define custom logic that can be executed during the lifecycle of core database operations in Better Auth. You can create hooks for the following models: user, session, and account.
+
+There are two types of hooks you can define:
+
+1. Before Hook
+Purpose: This hook is called before the respective entity (user, session, or account) is created or updated.
+Behavior: If the hook returns false, the operation will be aborted. And If it returns a data object, it'll replace the orginal payload.
+2. After Hook
+Purpose: This hook is called after the respective entity is created or updated.
+Behavior: You can perform additional actions or modifications after the entity has been successfully created or updated.
+Example Usage
+
+auth.ts
+
+import { betterAuth } from "better-auth";
+ 
+export const auth = betterAuth({
+   databaseHooks: {
+        user: {
+          create: {
+              before: async (user) => {
+                  // Modify the user object before it is created
+                  return {
+                     data: {
+                        ...user,
+                        firstName: user.name.split(" ")[0],
+                        lastName: user.name.split(" ")[1]
+                     }
+                  }
+              },
+              after: async (user) => {
+                  //perform additional actions, like creating a stripe customer
+              },
+          },
+      },
+   }
+})
+Throwing Errors
+If you want to stop the database hook from proceeding, you can throw errors using the APIError class imported from better-auth/api.
+
+auth.ts
+
+import { betterAuth } from "better-auth";
+import { APIError } from "better-auth/api";
+ 
+export const auth = betterAuth({
+  databaseHooks: {
+    user: {
+      create: {
+        before: async (user) => {
+          if (user.isAgreedToTerms === false) { // Your special condition.
+            // Send the API error.
+            throw new APIError("BAD_REQUEST", {
+              message: "User must agree to the TOS before signing up.",
+            });
+          }
+          return {
+            data: user
+          };
+        },
+      },
+    },
+  }
+})
+Plugins Schema
+Plugins can define their own tables in the database to store additional data. They can also add columns to the core tables to store additional data. For example, the two factor authentication plugin adds the following columns to the user table:
+
+twoFactorEnabled: Whether two factor authentication is enabled for the user.
+twoFactorSecret: The secret key used to generate TOTP codes.
+twoFactorBackupCodes: Encrypted backup codes for account recovery.
+To add new tables and columns to your database, you have two options:
+
+CLI: Use the migrate or generate command. These commands will scan your database and guide you through adding any missing tables or columns. Manual Method: Follow the instructions in the plugin documentation to manually add tables and columns.
+
+Both methods ensure your database schema stays up-to-date with your plugins' requirements.
+
+
+
+
+Email
+Email is a key part of Better Auth, required for all users regardless of their authentication method. Better Auth provides email and password authentication out of the box, and a lot of utilities to help you manage email verification, password reset, and more.
+
+Email Verification
+Email verification is a security feature that ensures users provide a valid email address. It helps prevent spam and abuse by confirming that the email address belongs to the user.
+
+Adding Email Verification to Your App
+To enable email verification, you need to pass a function that sends a verification email with a link.
+
+sendVerificationEmail: This function is triggered when email verification starts. It accepts a data object with the following properties:
+user: The user object containing the email address.
+url: The verification URL the user must click to verify their email.
+token: The verification token used to complete the email verification to be used when implementing a custom verification URL.
+and a request object as the second parameter.
+
+auth.ts
+
+import { betterAuth } from 'better-auth';
+import { sendEmail } from './email'; // your email sending function
+ 
+export const auth = betterAuth({
+    emailVerification: {
+        sendVerificationEmail: async ({ user, url, token }, request) => {
+            await sendEmail({
+                to: user.email,
+                subject: 'Verify your email address',
+                text: `Click the link to verify your email: ${url}`
+            })
+        }
+    }
+})
+Triggering Email Verification
+You can initiate email verification in two ways:
+
+1. During Sign-up
+To automatically send a verification email at signup, set emailVerification.sendOnSignUp to true.
+
+auth.ts
+
+import { betterAuth } from 'better-auth';
+ 
+export const auth = betterAuth({
+    emailVerification: {
+        sendOnSignUp: true
+    }
+})
+This sends a verification email when a user signs up. For social logins, email verification status is read from the SSO.
+
+With sendOnSignUp enabled, when the user logs in with an SSO that does not claim the email as verified, Better Auth will dispatch a verification email, but the verification is not required to login even when requireEmailVerification is enabled.
+
+2. Require Email Verification
+If you enable require email verification, users must verify their email before they can log in. And every time a user tries to sign in, sendVerificationEmail is called.
+
+This only works if you have sendVerificationEmail implemented and if the user is trying to sign in with email and password.
+
+auth.ts
+
+export const auth = betterAuth({
+    emailAndPassword: {
+        requireEmailVerification: true
+    }
+})
+if a user tries to sign in without verifying their email, you can handle the error and show a message to the user.
+
+auth-client.ts
+
+await authClient.signIn.emailAndPassword({
+    email: "email@example.com",
+    password: "password"
+}, {
+    onError: (ctx) => {
+        // Handle the error
+        if(ctx.error.status === 403) {
+            alert("Please verify your email address")
+        }
+        //you can also show the original error message
+        alert(ctx.error.message)
+    }
+})
+3. Manually
+You can also manually trigger email verification by calling sendVerificationEmail.
+
+
+await authClient.sendVerificationEmail({
+    email: "user@email.com",
+    callbackURL: "/" // The redirect URL after verification
+})
+Verifying the Email
+If the user clicks the provided verification URL, their email is automatically verified, and they are redirected to the callbackURL.
+
+For manual verification, you can send the user a custom link with the token and call the verifyEmail function.
+
+
+authClient.verifyEmail({
+    query: {
+        token: "" // Pass the token here
+    }
+})
+Auto SignIn After Verification
+To sign in the user automatically after they successfully verify their email, set the autoSignInAfterVerification option to true:
+
+
+const auth = betterAuth({
+    //...your other options
+    emailVerification: {
+        autoSignInAfterVerification: true
+    }
+})
+Password Reset Email
+Password reset allows users to reset their password if they forget it. Better Auth provides a simple way to implement password reset functionality.
+
+You can enable password reset by passing a function that sends a password reset email with a link.
+
+auth.ts
+
+import { betterAuth } from 'better-auth';
+import { sendEmail } from './email'; // your email sending function
+ 
+export const auth = betterAuth({
+    emailAndPassword: {
+        enabled: true,
+        sendResetPassword: async ({ user, url, token }, request) => {
+            await sendEmail({
+                to: user.email,
+                subject: 'Reset your password',
+                text: `Click the link to reset your password: ${url}`
+            })
+        }
+    }
+})
+Check out the Email and Password guide for more details on how to implement password reset in your app.
+
+
+
+Hooks
+Hooks in Better Auth let you "hook into" the lifecycle and execute custom logic. They provide a way to customize Better Auth's behavior without writing a full plugin.
+
+We highly recommend using hooks if you need to make custom adjustments to an endpoint rather than making another endpoint outside of better auth.
+
+Before Hooks
+Before hooks run before an endpoint is executed. Use them to modify requests, pre validate data, or return early.
+
+Example: Enforce Email Domain Restriction
+This hook ensures that users can only sign up if their email ends with @example.com:
+
+auth.ts
+
+import { betterAuth } from "better-auth";
+import { createAuthMiddleware, APIError } from "better-auth/api";
+ 
+export const auth = betterAuth({
+    hooks: {
+        before: createAuthMiddleware(async (ctx) => {
+            if (ctx.path !== "/sign-up/email") {
+                return;
+            }
+            if (!ctx.body?.email.endsWith("@example.com")) {
+                throw new APIError("BAD_REQUEST", {
+                    message: "Email must end with @example.com",
+                });
+            }
+        }),
+    },
+});
+Example: Modify Request Context
+To adjust the request context before proceeding:
+
+auth.ts
+
+import { betterAuth } from "better-auth";
+import { createAuthMiddleware } from "better-auth/api";
+ 
+export const auth = betterAuth({
+    hooks: {
+        before: createAuthMiddleware(async (ctx) => {
+            if (ctx.path === "/sign-up/email") {
+                return {
+                    context: {
+                        ...ctx,
+                        body: {
+                            ...ctx.body,
+                            name: "John Doe",
+                        },
+                    }
+                };
+            }
+        }),
+    },
+});
+After Hooks
+After hooks run after an endpoint is executed. Use them to modify responses.
+
+Example: Send a notification to your channel when a new user is registered
+auth.ts
+
+import { betterAuth } from "better-auth";
+import { createAuthMiddleware } from "better-auth/api";
+import { sendMessage } from "@/lib/notification"
+ 
+export const auth = betterAuth({
+    hooks: {
+        after: createAuthMiddleware(async (ctx) => {
+            if(ctx.path.startsWith("/sign-up")){
+                const newSession = ctx.context.newSession;
+                if(newSession){
+                    sendMessage({
+                        type: "user-register",
+                        name: newSession.user.name,
+                    })
+                }
+            }
+        }),
+    },
+});
+Ctx
+When you call createAuthMiddleware a ctx object is passed that provides a lot of useful properties. Including:
+
+Path: ctx.path to get the current endpoint path.
+Body: ctx.body for parsed request body (available for POST requests).
+Headers: ctx.headers to access request headers.
+Request: ctx.request to access the request object (may not exist in server-only endpoints).
+Query Parameters: ctx.query to access query parameters.
+Context: ctx.context auth related context, useful for accessing new session, auth cookies configuration, password hashing, config...
+and more.
+
+Request Response
+This utilities allows you to get request information and to send response from a hook.
+
+JSON Responses
+Use ctx.json to send JSON responses:
+
+
+const hook = createAuthMiddleware(async (ctx) => {
+    return ctx.json({
+        message: "Hello World",
+    });
+});
+Redirects
+Use ctx.redirect to redirect users:
+
+
+import { createAuthMiddleware } from "better-auth/api";
+ 
+const hook = createAuthMiddleware(async (ctx) => {
+    throw ctx.redirect("/sign-up/name");
+});
+Cookies
+Set cookies: ctx.setCookies or ctx.setSignedCookie.
+Get cookies: ctx.getCookies or ctx.getSignedCookies.
+Example:
+
+
+import { createAuthMiddleware } from "better-auth/api";
+ 
+const hook = createAuthMiddleware(async (ctx) => {
+    ctx.setCookies("my-cookie", "value");
+    await ctx.setSignedCookie("my-signed-cookie", "value", ctx.context.secret, {
+        maxAge: 1000,
+    });
+ 
+    const cookie = ctx.getCookies("my-cookie");
+    const signedCookie = await ctx.getSignedCookies("my-signed-cookie");
+});
+Errors
+Throw errors with APIError for a specific status code and message:
+
+
+import { createAuthMiddleware, APIError } from "better-auth/api";
+ 
+const hook = createAuthMiddleware(async (ctx) => {
+    throw new APIError("BAD_REQUEST", {
+        message: "Invalid request",
+    });
+});
+Context
+The ctx object contains another context object inside that's meant to hold contexts related to auth. Including a newly created session on after hook, cookies configuration, password hasher and so on.
+
+New Session
+The newly created session after an endpoint is run. This only exist in after hook.
+
+auth.ts
+
+createAuthMiddleware(async (ctx) => {
+    const newSession = ctx.context.newSession
+});
+Predefined Auth Cookies
+Access BetterAuth’s predefined cookie properties:
+
+auth.ts
+
+createAuthMiddleware(async (ctx) => {
+    const cookieName = ctx.context.authCookies.sessionToken.name;
+});
+Secret
+You can access the secret for your auth instance on ctx.context.secret
+
+Password
+The password object provider hash and verify
+
+ctx.context.password.hash: let's you hash a given password.
+ctx.context.password.verify: let's you verify given password and a hash.
+Adapter
+Adapter exposes the adapter methods used by better auth. Including findOne, findMany, create, delete, update and updateMany. You generally should use your actually db instance from your orm rather than this adapter.
+
+Internal Adapter
+These are calls to your db that perform specific actions. createUser, createSession, updateSession...
+
+This may be useful to use instead of using your db directly to get access to databaseHooks, proper secondaryStorage support and so on. If you're make a query similar to what exist in this internal adapter actions it's worth a look.
+
+generateId
+You can use ctx.context.generateId to generate Id for various reasons.
+
+Reusable Hooks
+If you need to reuse a hook across multiple endpoints, consider creating a plugin. Learn more in the Plugins Documentation.
+
+
+
+Plugins
+Plugins are a key part of Better Auth, they let you extend the base functionalities. You can use them to add new authentication methods, features, or customize behaviors.
+
+Better Auth offers comes with many built-in plugins ready to use. Check the plugins section for details. You can also create your own plugins.
+
+Using a Plugin
+Plugins can be a server-side plugin, a client-side plugin, or both.
+
+To add a plugin on the server, include it in the plugins array in your auth configuration. The plugin will initialize with the provided options.
+
+server.ts
+
+import { betterAuth } from "better-auth";
+ 
+export const auth = betterAuth({
+    plugins: [
+        // Add your plugins here
+    ]
+});
+Client plugins are added when creating the client. Most plugin require both server and client plugins to work correctly. The Better Auth auth client on the frontend uses the createAuthClient function provided by better-auth/client.
+
+auth-client.ts
+
+import { createAuthClient } from "better-auth/client";
+ 
+const authClient =  createAuthClient({
+    plugins: [
+        // Add your client plugins here
+    ]
+});
+We recommend keeping the auth-client and your normal auth instance in separate files.
+
+auth
+server.ts
+auth-client.ts
+Creating a Plugin
+To get started, you'll need a server plugin. Server plugins are the backbone of all plugins, and client plugins are there to provide an interface with frontend APIs to easily work with your server plugins.
+
+If your server plugins has endpoints that needs to be called from the client, you'll also need to create a client plugin.
+
+What can a plugin do?
+Create custom endpoints to perform any action you want.
+Extend database tables with custom schemas.
+Use a middleware to target a group of routes using it's route matcher, and run only when those routes are called through a request.
+Use hooks to target a specific route or request. And if you want to run the hook even if the endpoint is called directly.
+Use onRequest or onResponse if you want to do something that affects all requests or responses.
+Create custom rate-limit rule.
+Create a Server plugin
+To create a server plugin you need to pass an object that satisfies the BetterAuthPlugin interface.
+
+The only required property is id, which is a unique identifier for the plugin. Both server and client plugins can use the same id.
+
+plugin.ts
+
+import type { BetterAuthPlugin } from "better-auth";
+ 
+export const myPlugin = ()=>{
+    return {
+        id: "my-plugin",
+    } satisfies BetterAuthPlugin
+}
+You don't have to make the plugin a function, but it's recommended to do so. This way you can pass options to the plugin and it's consistent with the built-in plugins.
+
+Endpoints
+To add endpoints to the server, you can pass endpoints which requires an object with the key being any string and the value being an AuthEndpoint.
+
+To create an Auth Endpoint you'll need to import createAuthEndpoint from better-auth.
+
+Better Auth uses wraps around another library called Better Call to create endpoints. Better call is a simple ts web framework made by the same team behind Better Auth.
+
+plugin.ts
+
+import { createAuthEndpoint } from "better-auth/api";
+ 
+const myPlugin = ()=> {
+    return {
+        id: "my-plugin",
+        endpoints: {
+            getHelloWorld: createAuthEndpoint("/my-plugin/hello-world", {
+                method: "GET",
+            }, async(ctx) => {
+                return ctx.json({
+                    message: "Hello World"
+                })
+            })
+        }
+    } satisfies BetterAuthPlugin
+}
+Create Auth endpoints wraps around createEndpoint from Better Call. Inside the ctx object, it'll provide another object called context that give you access better-auth specific contexts including options, db, baseURL and more.
+
+Context Object
+
+appName: The name of the application. Defaults to "Better Auth".
+options: The options passed to the Better Auth instance.
+tables: Core tables definition. It is an object which has the table name as the key and the schema definition as the value.
+baseURL: the baseURL of the auth server. This includes the path. For example, if the server is running on http://localhost:3000, the baseURL will be http://localhost:3000/api/auth by default unless changed by the user.
+session: The session configuration. Includes updateAge and expiresIn values.
+secret: The secret key used for various purposes. This is defined by the user.
+authCookie: The default cookie configuration for core auth cookies.
+logger: The logger instance used by Better Auth.
+db: The Kysely instance used by Better Auth to interact with the database.
+adapter: This is the same as db but it give you orm like functions to interact with the database. (we recommend using this over db unless you need raw sql queries or for performance reasons)
+internalAdapter: These are internal db calls that are used by Better Auth. For example, you can use these calls to create a session instead of using adapter directly. internalAdapter.createSession(userId)
+createAuthCookie: This is a helper function that let's you get a cookie name and options for either to set or get cookies. It implements things like __secure prefix and __host prefix for cookies based on
+For other properties, you can check the Better Call documentation and the source code .
+
+Rules for Endpoints
+
+Makes sure you use kebab-case for the endpoint path
+Make sure to only use POST or GET methods for the endpoints.
+Any function that modifies a data should be a POST method.
+Any function that fetches data should be a GET method.
+Make sure to use the createAuthEndpoint function to create API endpoints.
+Make sure your paths are unique to avoid conflicts with other plugins. If you're using a common path, add the plugin name as a prefix to the path. (/my-plugin/hello-world instead of /hello-world.)
+Schema
+You can define a database schema for your plugin by passing a schema object. The schema object should have the table name as the key and the schema definition as the value.
+
+plugin.ts
+
+import { BetterAuthPlugin } from "better-auth/plugins";
+ 
+const myPlugin = ()=> {
+    return {
+        id: "my-plugin",
+        schema: {
+            myTable: {
+                fields: {
+                    name: {
+                        type: "string"
+                    }
+                },
+                modelName: "myTable" // optional if you want to use a different name than the key
+            }
+        }
+    } satisfies BetterAuthPlugin
+}
+Fields
+
+By default better-auth will create an id field for each table. You can add additional fields to the table by adding them to the fields object.
+
+The key is the column name and the value is the column definition. The column definition can have the following properties:
+
+type: The type of the filed. It can be string, number, boolean, date.
+
+required: if the field should be required on a new record. (default: false)
+
+unique: if the field should be unique. (default: false)
+
+reference: if the field is a reference to another table. (default: null) It takes an object with the following properties:
+
+model: The table name to reference.
+field: The field name to reference.
+onDelete: The action to take when the referenced record is deleted. (default: null)
+Other Schema Properties
+
+disableMigration: if the table should not be migrated. (default: false)
+
+plugin.ts
+
+const myPlugin = (opts: PluginOptions)=>{
+    return {
+        id: "my-plugin",
+        schema: {
+            rateLimit: {
+                fields: {
+                    key: {
+                        type: "string",
+                    },
+                },
+                disableMigration: opts.storage.provider !== "database", 
+            },
+        },
+    } satisfies BetterAuthPlugin
+}
+if you add additional fields to a user or session table, the types will be inferred automatically on getSession and signUpEmail calls.
+
+plugin.ts
+
+ 
+const myPlugin = ()=>{
+    return {
+        id: "my-plugin",
+        schema: {
+            user: {
+                fields: {
+                    age: {
+                        type: "number",
+                    },
+                },
+            },
+        },
+    } satisfies BetterAuthPlugin
+}
+This will add an age field to the user table and all user returning endpoints will include the age field and it'll be inferred properly by typescript.
+
+Don't store sensitive information in user or session table. Crate a new table if you need to store sensitive information.
+
+Hooks
+Hooks are used to run code before or after an action is performed, either from a client or directly on the server. You can add hooks to the server by passing a hooks object, which should contain before and after properties.
+
+plugin.ts
+
+import {  createAuthMiddleware } from "better-auth/plugins";
+ 
+const myPlugin = ()=>{
+    return {
+        id: "my-plugin",
+        hooks: {
+            before: [{
+                    matcher: (context)=>{
+                        return context.headers.get("x-my-header") === "my-value"
+                    },
+                    handler: createAuthMiddleware(async(ctx)=>{
+                        //do something before the request
+                        return  {
+                            context: ctx // if you want to modify the context
+                        }
+                    })
+                }],
+            after: [{
+                matcher: (context)=>{
+                    return context.path === "/sign-up/email"
+                },
+                handler: async(ctx)=>{
+                    return ctx.json({
+                        message: "Hello World"
+                    }) // if you want to modify the response
+                }
+            }]
+        }
+    } satisfies BetterAuthPlugin
+}
+Middleware
+You can add middleware to the server by passing a middleware array. This array should contain middleware objects, each with a path and a middleware property. Unlike hooks, middleware only runs on api requests from a client. If the endpoint is invoked directly, the middleware will not run.
+
+The path can be either a string or a path matcher, using the same path-matching system as better-call.
+
+If you throw an APIError from the middleware or returned a Response object, the request will be stopped and the response will be sent to the client.
+
+plugin.ts
+
+const myPlugin = ()=>{
+    return {
+        id: "my-plugin",
+        middleware: [
+            {
+                path: "/my-plugin/hello-world",
+                middleware: createAuthMiddleware(async(ctx)=>{
+                    //do something
+                })
+            }
+        ]
+    } satisfies BetterAuthPlugin
+}
+On Request & On Response
+Additional to middlewares, you can also hook into right before a request is made and right after a response is returned. This is mostly useful if you want to do something that affects all requests or responses.
+
+On Request
+The onRequest function is called right before the request is made. It takes two parameters: the request and the context object.
+
+Here’s how it works:
+
+Continue as Normal: If you don't return anything, the request will proceed as usual.
+Interrupt the Request: To stop the request and send a response, return an object with a response property that contains a Response object.
+Modify the Request: You can also return a modified request object to change the request before it's sent.
+plugin.ts
+
+const myPlugin = ()=> {
+    return  {
+        id: "my-plugin",
+        onRequest: async (request, context) => {
+            //do something
+        },
+    } satisfies BetterAuthPlugin
+}
+On Response
+The onResponse function is executed immediately after a response is returned. It takes two parameters: the response and the context object.
+
+Here’s how to use it:
+
+Modify the Response: You can return a modified response object to change the response before it is sent to the client.
+Continue Normally: If you don’t return anything, the response will be sent as is.
+plugin.ts
+
+const myPlugin = ()=>{
+    return {
+        id: "my-plugin",
+        onResponse: async (response, context) => {
+            //do something
+        },
+    } satisfies BetterAuthPlugin
+}
+Rate Limit
+You can define custom rate limit rules for your plugin by passing a rateLimit array. The rate limit array should contain an array of rate limit objects.
+
+plugin.ts
+
+const myPlugin = ()=>{
+    return {
+        id: "my-plugin",
+        rateLimit: [
+            {
+                pathMatcher: (path)=>{
+                    return path === "/my-plugin/hello-world"
+                },
+                limit: 10,
+                window: 60,
+            }
+        ]
+    } satisfies BetterAuthPlugin
+}
+Server-plugin helper functions
+Some additional helper functions for creating server plugins.
+
+getSessionFromCtx
+Allows you to get the client's session data by passing the auth middleware's context.
+
+plugin.ts
+
+import {  createAuthMiddleware } from "better-auth/plugins";
+ 
+const myPlugin = {
+    id: "my-plugin",
+    hooks: {
+        before: [{
+                matcher: (context)=>{
+                    return context.headers.get("x-my-header") === "my-value"
+                },
+                handler: createAuthMiddleware(async (ctx) => {
+                    const session = await getSessionFromCtx(ctx);
+                    //do something with the client's session.
+ 
+                    return  {
+                        context: ctx
+                    }
+                })
+            }],
+    }
+} satisfies BetterAuthPlugin
+sessionMiddleware
+A middleware that checks if the client has a valid session. If the client has a valid session, it'll add the session data to the context object.
+
+plugin.ts
+
+import {  createAuthMiddleware, sessionMiddleware } from "better-auth/plugins";
+ 
+const myPlugin = ()=>{
+    return {
+        id: "my-plugin",
+        endpoints: {
+            getHelloWorld: createAuthEndpoint("/my-plugin/hello-world", {
+                method: "GET",
+                use: [sessionMiddleware], 
+            }, async(ctx) => {
+                const session = ctx.context.session;
+                return ctx.json({
+                    message: "Hello World"
+                })
+            })
+        }
+    } satisfies BetterAuthPlugin
+}
+Creating a client plugin
+If your endpoints needs to be called from the client, you'll need to also create a client plugin. Better Auth clients can infer the endpoints from the server plugins. You can also add additional client side logic.
+
+client-plugin.ts
+
+import type { BetterAuthClientPlugin } from "better-auth";
+ 
+export const myPluginClient = ()=>{
+    return {
+        id: "my-plugin",
+    } satisfies BetterAuthClientPlugin
+}
+Endpoint Interface
+Endpoints are inferred from the server plugin by adding a $InferServerPlugin key to the client plugin.
+
+The client infers the path as an object and converts kebab-case to camelCase. For example, /my-plugin/hello-world becomes myPlugin.helloWorld.
+
+client-plugin.ts
+
+import type { BetterAuthClientPlugin } from "better-auth/client";
+import type { myPlugin } from "./plugin";
+ 
+const myPluginClient = ()=> {
+    return  {
+        id: "my-plugin",
+        $InferServerPlugin: {} as ReturnType<typeof myPlugin>,
+    } satisfies BetterAuthClientPlugin
+}
+Get actions
+If you need to add additional methods or what not to the client you can use the getActions function. This function is called with the fetch function from the client.
+
+Better Auth uses Better fetch to make requests. Better fetch is a simple fetch wrapper made by the same author of Better Auth.
+
+client-plugin.ts
+
+import type { BetterAuthClientPlugin } from "better-auth/client";
+import type { myPlugin } from "./plugin";
+import type { BetterFetchOption } from "@better-fetch/fetch";
+ 
+const myPluginClient = {
+    id: "my-plugin",
+    $InferServerPlugin: {} as ReturnType<typeof myPlugin>,
+    getActions: ($fetch)=>{
+        return {
+            myCustomAction: async (data: {
+                foo: string,
+            }, fetchOptions?: BetterFetchOption)=>{
+                const res = $fetch("/custom/action", {
+                    method: "POST",
+                    body: {
+                        foo: data.foo
+                    },
+                    ...fetchOptions
+                })
+                return res
+            }
+        }
+    }
+} satisfies BetterAuthClientPlugin
+As a general guideline, ensure that each function accepts only one argument, with an optional second argument for fetchOptions to allow users to pass additional options to the fetch call. The function should return an object containing data and error keys.
+
+If your use case involves actions beyond API calls, feel free to deviate from this rule.
+
+Get Atoms
+This is only useful if you want to provide hooks like useSession.
+
+Get atoms is called with the fetch function from better fetch and it should return an object with the atoms. The atoms should be created using nanostores. The atoms will be resolved by each framework useStore hook provided by nanostores.
+
+client-plugin.ts
+
+import { atom } from "nanostores";
+import type { BetterAuthClientPlugin } from "better-auth/client";
+ 
+const myPluginClient = {
+    id: "my-plugin",
+    $InferServerPlugin: {} as ReturnType<typeof myPlugin>,
+    getAtoms: ($fetch)=>{
+        const myAtom = atom<null>()
+        return {
+            myAtom
+        }
+    }
+} satisfies BetterAuthClientPlugin
+See built in plugins for examples of how to use atoms properly.
+
+Path methods
+by default, inferred paths use GET method if they don't require a body and POST if they do. You can override this by passing a pathMethods object. The key should be the path and the value should be the method ("POST" | "GET").
+
+client-plugin.ts
+
+import type { BetterAuthClientPlugin } from "better-auth/client";
+import type { myPlugin } from "./plugin";
+ 
+const myPluginClient = {
+    id: "my-plugin",
+    $InferServerPlugin: {} as ReturnType<typeof myPlugin>,
+    pathMethods: {
+        "/my-plugin/hello-world": "POST"
+    }
+} satisfies BetterAuthClientPlugin
+Fetch plugins
+If you need to use better fetch plugins you can pass them to the fetchPlugins array. You can read more about better fetch plugins in the better fetch documentation.
+
+Atom Listeners
+This is only useful if you want to provide hooks like useSession and you want to listen to atoms and re-evaluate them when they change.
+
+You can see how this is used in the built-in plugins.
+
+
+
+
+OAuth
+Better Auth comes with built-in support for OAuth 2.0 and OpenID Connect. This allows you to authenticate users via popular OAuth providers like Google, Facebook, GitHub, and more.
+
+If your desired provider isn’t directly supported, you can use the Generic OAuth Plugin for custom integrations.
+
+Configuring Social Providers
+To enable a social provider, you need to provide clientId and clientSecret for the provider.
+
+Here’s an example of how to configure Google as a provider:
+
+auth.ts
+
+import { betterAuth } from 'better-auth';
+ 
+export const auth = betterAuth({
+    // Other configurations...
+    socialProviders: {
+        google: {
+            clientId: 'YOUR_GOOGLE_CLIENT_ID',
+            clientSecret: 'YOUR_GOOGLE_CLIENT_SECRET',
+        }
+    }
+})
+Other Provider Configurations
+scope The scope of the access request. For example, email or profile.
+
+redirectURI Custom redirect URI for the provider. By default, it uses /api/auth/callback/${providerName}.
+
+disableIdTokenSignIn: Disables the use of the ID token for sign-in. By default, it’s enabled for some providers like Google and Apple.
+
+verifyIdToken A custom function to verify the ID token.
+
+getUserInfo A custom function to fetch user information from the provider. Given the tokens returned from the provider, this function should return the user’s information.
+
+mapProfileToUser A custom function to map the user profile returned from the provider to the user object in your database.
+
+Useful, if you have additional fields in your user object you want to populate from the provider’s profile. Or if you want to change how by default the user object is mapped.
+
+auth.ts
+
+import { betterAuth } from 'better-auth';
+ 
+export const auth = betterAuth({
+    // Other configurations...
+    socialProviders: {
+        google: {
+            clientId: 'YOUR_GOOGLE_CLIENT_ID',
+            clientSecret: 'YOUR_GOOGLE_CLIENT_SECRET',
+            mapProfileToUser: (profile) => {
+                return {
+                   firstName: profile.given_name,
+                   lastName: profile.family_name,
+                }
+            }
+        }
+    }
+})
+How OAuth Works in Better Auth
+Here’s what happens when a user selects a provider to authenticate with:
+
+Configuration Check: Ensure the necessary provider details (e.g., client ID, secret) are configured.
+State Generation: Generate and save a state token in your database for CSRF protection.
+PKCE Support: If applicable, create a PKCE code challenge and verifier for secure exchanges.
+Authorization URL Construction: Build the provider’s authorization URL with parameters like client ID, redirect URI, state, etc. The callback URL usually follows the pattern /api/auth/callback/${providerName}.
+User Redirection:
+If redirection is enabled, users are redirected to the provider’s login page.
+If redirection is disabled, the authorization URL is returned for the client to handle the redirection.
+Post-Login Flow
+After the user completes the login process, the provider redirects them back to the callback URL with a code and state. Better Auth handles the rest:
+
+Token Exchange: The code is exchanged for an access token and user information.
+User Handling:
+If the user doesn’t exist, a new account is created.
+If the user exists, they are logged in.
+If the user has multiple accounts across providers, Better Auth links them based on your configuration. Learn more about account linking.
+Session Creation: A new session is created for the user.
+Redirect: Users are redirected to the specified URL provided during the initial request or /.
+If any error occurs during the process, Better Auth handles it and redirects the user to the error URL (if provided) or the callbackURL. And it includes the error message in the query string ?error=....
+
+
+
+
+Rate Limit
+Better Auth includes a built-in rate limiter to help manage traffic and prevent abuse. By default, in production mode, the rate limiter is set to:
+
+Window: 60 seconds
+Max Requests: 100 requests
+You can easily customize these settings by passing the rateLimit object to the betterAuth function.
+
+auth.ts
+
+import { betterAuth } from "better-auth";
+ 
+export const auth = betterAuth({
+    rateLimit: {
+        window: 10, // time window in seconds
+        max: 100, // max requests in the window
+    },
+})
+In addition to the default settings, Better Auth provides custom rules for specific paths. For example:
+
+/sign-in/email: Is limited to 3 requests within 10 seconds.
+In addition, plugins also define custom rules for specific paths. For example, twoFactor plugin has custom rules:
+
+/two-factor/verify: Is limited to 3 requests within 10 seconds.
+These custom rules ensure that sensitive operations are protected with stricter limits.
+
+Configuring Rate Limit
+Rate Limit Window
+auth.ts
+
+import { betterAuth } from "better-auth";
+ 
+export const auth = betterAuth({
+    //...other options
+    rateLimit: {
+        window: 60, // time window in seconds
+        max: 100, // max requests in the window
+    },
+})
+You can also pass custom rules for specific paths.
+
+auth.ts
+
+import { betterAuth } from "better-auth";
+ 
+export const auth = betterAuth({
+    //...other options
+    rateLimit: {
+        window: 60, // time window in seconds
+        max: 100, // max requests in the window
+        customRules: {
+            "/sign-in/email": {
+                window: 10,
+                max: 3,
+            },
+            "/two-factor/*": async (request)=> {
+                // custom function to return rate limit window and max
+                return {
+                    window: 10,
+                    max: 3,
+                }
+            }
+        },
+    },
+})
+Storage
+By default, rate limit data is stored in memory, which may not be suitable for many use cases, particularly in serverless environments. To address this, you can use a database, secondary storage, or custom storage for storing rate limit data.
+
+Using Database
+
+auth.ts
+
+import { betterAuth } from "better-auth";
+ 
+export const auth = betterAuth({
+    //...other options
+    rateLimit: {
+        storage: "database",
+        modelName: "rateLimit", //optional by default "rateLimit" is used
+    },
+})
+Make sure to run migrate to create the rate limit table in your database.
+
+
+npx @better-auth/cli migrate
+Using Secondary Storage
+
+If a Secondary Storage has been configured you can use that to store rate limit data.
+
+auth.ts
+
+import { betterAuth } from "better-auth";
+ 
+export const auth = betterAuth({
+    //...other options
+    rateLimit: {
+		storage: "secondary-storage"
+    },
+})
+Custom Storage
+
+If none of the above solutions suits your use case you can implement a customStorage.
+
+auth.ts
+
+import { betterAuth } from "better-auth";
+ 
+export const auth = betterAuth({
+    //...other options
+    rateLimit: {
+        customStorage: {
+            get: async (key) => {
+                // get rate limit data
+            },
+            set: async (key, value) => {
+                // set rate limit data
+            },
+        },
+    },
+})
+Handling Rate Limit Errors
+When a request exceeds the rate limit, Better Auth returns the following header:
+
+X-Retry-After: The number of seconds until the user can make another request.
+To handle rate limit errors on the client side, you can manage them either globally or on a per-request basis. Since Better Auth clients wrap over Better Fetch, you can pass fetchOptions to handle rate limit errors
+
+Global Handling
+
+auth-client.ts
+
+import { createAuthClient } from "better-auth/client";
+ 
+export const authClient =  createAuthClient({
+    fetchOptions: {
+        onError: async (context) => {
+            const { response } = context;
+            if (response.status === 429) {
+                const retryAfter = response.headers.get("X-Retry-After");
+                console.log(`Rate limit exceeded. Retry after ${retryAfter} seconds`);
+            }
+        },
+    }
+})
+Per Request Handling
+
+auth-client.ts
+
+import { client } from "./client";
+ 
+await authClient.signIn.email({
+    fetchOptions: {
+        onError: async (context) => {
+            const { response } = context;
+            if (response.status === 429) {
+                const retryAfter = response.headers.get("X-Retry-After");
+                console.log(`Rate limit exceeded. Retry after ${retryAfter} seconds`);
+            }
+        },
+    }
+})
+Schema
+If you are using a database to store rate limit data you need this schema:
+
+Table Name: rateLimit
+
+Field Name	Type	Key	Description
+key	string	PK	Unique identifier for each rate limit key
+count	integer	-	Time window in seconds
+lastRequest	bigint	-	Max requests in the window
+
+
+
+
+
+Session Management
+Better Auth manages session using a traditional cookie-based session management. The session is stored in a cookie and is sent to the server on every request. The server then verifies the session and returns the user data if the session is valid.
+
+Session table
+The session table stores the session data. The session table has the following fields:
+
+id: The session token. Which is also used as the session cookie.
+userId: The user id of the user.
+expiresAt: The expiration date of the session.
+ipAddress: The IP address of the user.
+userAgent: The user agent of the user. It stores the user agent header from the request.
+Session Expiration
+The session expires after 7 days by default. But whenever the session is used, and the updateAge is reached the session expiration is updated to the current time plus the expiresIn value.
+
+You can change both the expiresIn and updateAge values by passing the session object to the auth configuration.
+
+auth.ts
+
+import { betterAuth } from "better-auth"
+ 
+export const auth = betterAuth({
+    //... other config options
+    session: {
+        expiresIn: 60 * 60 * 24 * 7, // 7 days
+        updateAge: 60 * 60 * 24 // 1 day (every 1 day the session expiration is updated)
+    }
+})
+Session Freshness
+Some endpoints in Better Auth require the session to be fresh. A session is considered fresh if its createdAt is within the freshAge limit. By default, the freshAge is set to 1 day (60 * 60 * 24).
+
+You can customize the freshAge value by passing a session object in the auth configuration:
+
+auth.ts
+
+import { betterAuth } from "better-auth"
+ 
+export const auth = betterAuth({
+    //... other config options
+    session: {
+        freshAge: 60 * 5 // 5 minutes (the session is fresh if created within the last 5 minutes)
+    }
+})
+To disable the freshness check, set freshAge to 0:
+
+auth.ts
+
+import { betterAuth } from "better-auth"
+ 
+export const auth = betterAuth({
+    //... other config options
+    session: {
+        freshAge: 0 // Disable freshness check
+    }
+})
+Session Management
+Better Auth provides a set of functions to manage sessions.
+
+Get Session
+The getSession function retrieves the current active session.
+
+
+import { authClient } from "@/lib/client"
+ 
+const session = await authClient.getSession()
+To learn how to customize the session response check the Customizing Session Response section.
+
+Use Session
+The useSession action provides a reactive way to access the current session.
+
+
+import { authClient } from "@/lib/client"
+ 
+const session = await authClient.useSession()
+List Sessions
+The listSessions function returns a list of sessions that are active for the user.
+
+auth-client.ts
+
+import { authClient } from "@/lib/client"
+ 
+const sessions = await authClient.listSessions()
+Revoke Session
+When a user signs out of a device, the session is automatically ended. However, you can also end a session manually from any device the user is signed into.
+
+To end a session, use the revokeSession function. Just pass the session token as a parameter.
+
+auth-client.ts
+
+await authClient.revokeSession({
+    token: "session-token"
+})
+Revoke Other Sessions
+To revoke all other sessions except the current session, you can use the revokeOtherSessions function.
+
+auth-client.ts
+
+await authClient.revokeOtherSessions()
+Revoke All Sessions
+To revoke all sessions, you can use the revokeSessions function.
+
+auth-client.ts
+
+await authClient.revokeSessions()
+Revoking Sessions on Password Change
+You can revoke all sessions when the user changes their password by passing revokeOtherSessions as true on changePassword function.
+
+auth.ts
+
+await authClient.changePassword({
+    newPassword: newPassword,
+    currentPassword: currentPassword,
+    revokeOtherSessions: true,
+})
+Session Caching
+Cookie Cache
+Calling your database every time useSession or getSession invoked isn’t ideal, especially if sessions don’t change frequently. Cookie caching handles this by storing session data in a short-lived, signed cookie—similar to how JWT access tokens are used with refresh tokens.
+
+When cookie caching is enabled, the server can check session validity from the cookie itself instead of hitting the database each time. The cookie is signed to prevent tampering, and a short maxAge ensures that the session data gets refreshed regularly. If a session is revoked or expires, the cookie will be invalidated automatically.
+
+To turn on cookie caching, just set session.cookieCache in your auth config:
+
+auth.ts
+
+const auth = new BetterAuth({
+    session: {
+        cookieCache: {
+            enabled: true,
+            maxAge: 5 * 60 // Cache duration in seconds
+        }
+    }
+});
+If you want to disable returning from the cookie cache when fetching the session, you can pass disableCookieCache:true
+
+auth-client.ts
+
+const session = await authClient.getSession({ query: {
+    disableCookieCache: true
+}})
+or on the server
+
+server.ts
+
+auth.api.getSession({
+    query: {
+        disableCookieCache: true,
+    }, 
+    headers: req.headers, // pass the headers
+});
+Customizing Session Response
+When you call getSession or useSession, the session data is returned as a user and session object. You can customize this response using the customSession plugin.
+
+auth.ts
+
+import { customSession } from "better-auth/plugins";
+ 
+export const auth = betterAuth({
+    plugins: [
+        customSession(async ({ user, session }) => {
+            const roles = findUserRoles(session.session.userId);
+            return {
+                roles,
+                user: {
+                    ...user,
+                    newField: "newField",
+                },
+                session
+            };
+        }),
+    ],
+});
+This will add roles and user.newField to the session response.
+
+Infer on the Client
+
+auth-client.ts
+
+import { customSessionClient } from "better-auth/client/plugins";
+import type { auth } from "@/lib/auth"; // Import the auth instance as a type
+ 
+const authClient = createAuthClient({
+    plugins: [customSessionClient<typeof auth>()],
+});
+ 
+const { data } = await authClient.useSession();
+const { data: sessionData } = await authClient.getSession();
+// data.roles
+// data.user.newField
+Some Caveats:
+
+The passed session object to the callback does not infer fields added by plugins.
+However, as a workaround, you can pull up your auth options and pass it to the plugin to infer the fields.
+
+
+import { betterAuth, BetterAuthOptions } from "better-auth";
+ 
+const options = {
+  //...config options
+  plugins: [
+    //...plugins
+  ]
+} satisfies BetterAuthOptions;
+ 
+export const auth = betterAuth({
+    ...options,
+    plugins: [{
+        ...options.plugins,
+        customSession(async ({ user, session }) => {
+            // now both user and session will infer the fields added by plugins and your custom fields
+            return {
+                user,
+                session
+            }
+        }, options), // pass options here
+    }]
+})
+If you cannot use the auth instance as a type, inference will not work on the client.
+Session caching, including secondary storage or cookie cache, does not include custom fields. Each time the session is fetched, your custom session function will be called.
+
+
+
+TypeScript
+Better Auth is designed to be type-safe. Both the client and server are built with TypeScript, allowing you to easily infer types.
+
+Typescript Config
+Strict Mode
+Better Auth is designed to work with TypeScript's strict mode. We recommend enabling strict mode in your TypeScript config file:
+
+tsconfig.json
+
+{
+  "compilerOptions": {
+    "strict": true
+  }
+}
+if you can't set strict to true, you can enable strictNullChecks:
+
+tsconfig.json
+
+{
+  "compilerOptions": {
+    "strictNullChecks": true,
+  }
+}
+Inferring Types
+Both the client SDK and the server offer types that can be inferred using the $Infer property. Plugins can extend base types like User and Session, and you can use $Infer to infer these types. Additionally, plugins can provide extra types that can also be inferred through $Infer.
+
+auth-client.ts
+
+import { createAuthClient } from "better-auth/client"
+ 
+const authClient = createAuthClient()
+ 
+export type Session = typeof authClient.$Infer.Session
+The Session type includes both session and user properties. The user property represents the user object type, and the session property represents the session object type.
+
+You can also infer types on the server side.
+
+auth.ts
+
+import { betterAuth } from "better-auth"
+import Database from "better-sqlite3"
+ 
+export const auth = betterAuth({
+    database: new Database("database.db")
+})
+ 
+type Session = typeof auth.$Infer.Session
+Additional Fields
+Better Auth allows you to add additional fields to the user and session objects. All additional fields are properly inferred and available on the server and client side.
+
+
+import { betterAuth } from "better-auth"
+import Database from "better-sqlite3"
+ 
+export const auth = betterAuth({
+    database: new Database("database.db"),
+    user: {
+       additionalFields: {
+          role: {
+              type: "string"
+            } 
+        }
+    }
+   
+})
+ 
+type Session = typeof auth.$Infer.Session
+In the example above, we added a role field to the user object. This field is now available on the Session type.
+
+Inferring Additional Fields on Client
+To make sure proper type inference for additional fields on the client side, you need to inform the client about these fields. There are two approaches to achieve this, depending on your project structure:
+
+For Monorepo or Single-Project Setups
+If your server and client code reside in the same project, you can use the inferAdditionalFields plugin to automatically infer the additional fields from your server configuration.
+
+
+import { inferAdditionalFields } from "better-auth/client/plugins";
+import { createAuthClient } from "better-auth/react";
+import type { auth } from "./auth";
+ 
+export const authClient = createAuthClient({
+  plugins: [inferAdditionalFields<typeof auth>()],
+});
+For Separate Client-Server Projects
+If your client and server are in separate projects, you'll need to manually specify the additional fields when creating the auth client.
+
+
+import type { auth } from "./auth";
+import { inferAdditionalFields } from "better-auth/client/plugins";
+ 
+export const authClient = createAuthClient({
+  plugins: [inferAdditionalFields({
+      user: {
+        role: {
+          type: "string"
+        }
+      }
+  })],
+});
+
+
+
+User & Accounts
+Beyond authenticating users, Better Auth also provides a set of methods to manage users. This includes, updating user information, changing passwords, and more.
+
+User table
+The user table stores the user data. The user table has the following fields:
+
+id: The user id.
+email: The email of the user.
+name: The name of the user.
+image: The image of the user.
+createdAt: The creation date of the user.
+updatedAt: The last update date of the user.
+The user table can be extended by plugins to store additional data. When a plugin extends a user table it's inferred by the type system and can be used in the client.
+
+Update User
+Update User Information
+To update user information, you can use the updateUser function provided by the client. The updateUser function takes an object with the following properties:
+
+
+await authClient.updateUser({
+    image: "https://example.com/image.jpg",
+    name: "John Doe",
+})
+Change Email
+To allow users to change their email, first enable the changeEmail feature, which is disabled by default. Set changeEmail.enabled to true:
+
+
+export const auth = betterAuth({
+    user: {
+        changeEmail: {
+            enabled: true,
+        }
+    }
+})
+For users with a verified email, provide the sendChangeEmailVerification function. This function triggers when a user changes their email, sending a verification email with a URL and token. If the current email isn't verified, the change happens immediately without verification.
+
+
+export const auth = betterAuth({
+    user: {
+        changeEmail: {
+            enabled: true,
+            sendChangeEmailVerification: async ({ user, newEmail, url, token }, request) => {
+                await sendEmail({
+                    to: user.email, // verification email must be sent to the current user email to approve the change
+                    subject: 'Approve email change',
+                    text: `Click the link to approve the change: ${url}`
+                })
+            }
+        }
+    }
+})
+Once enabled, use the changeEmail function on the client to update a user’s email. The user must verify their current email before changing it.
+
+
+await authClient.changeEmail({
+    newEmail: "new-email@email.com",
+    callbackURL: "/dashboard", //to redirect after verification
+});
+After verification, the new email is updated in the user table, and a confirmation is sent to the new address.
+
+If the current email is unverified, the new email is updated without the verification step.
+
+Change Password
+Password of a user isn't stored in the user table. Instead, it's stored in the account table. To change the password of a user, you can use the changePassword function provided by the client. The changePassword function takes an object with the following properties:
+
+
+await authClient.changePassword({
+    newPassword: "newPassword123",
+    currentPassword: "oldPassword123",
+    revokeOtherSessions: true, // revoke all other sessions the user is signed into
+});
+Set Password
+If a user was registered using OAuth or other providers, they won't have a password or a credential account. In this case, you can use the setPassword action to set a password for the user. For security reasons, this function can only be called from the server. We recommend having users go through a 'forgot password' flow to set a password for their account.
+
+
+await auth.api.setPassword({
+    newPassword: "password",
+    headers: //
+});
+Delete User
+Better Auth provides a utility to hard delete a user from your database. It's disabled by default, but you can enable it easily by passing enabled:true
+
+
+export const auth = betterAuth({
+    //...other config
+    user: {
+        deleteUser: {
+            enabled: true // [!Code Highlight]
+        }
+    }
+})
+Once enabled, you can call authClient.deleteUser to permanently delete user data from your database.
+
+Adding Verification Before Deletion
+For added security, you’ll likely want to confirm the user’s intent before deleting their account. A common approach is to send a verification email. Better Auth provides a sendDeleteAccountVerification utility for this purpose.
+
+Here’s how you can set it up:
+
+
+export const auth = betterAuth({
+    user: {
+        deleteUser: {
+            enabled: true,
+            sendDeleteAccountVerification: async (
+                {
+                    user,   // The user object
+                    url, // The auto-generated URL for deletion
+                    token  // The verification token  (can be used to generate custom URL)
+                },
+                request  // The original request object (optional)
+            ) => {
+                // Your email sending logic here
+                // Example: sendEmail(data.user.email, "Verify Deletion", data.url);
+            },
+        },
+    },
+});
+How callback verification works:
+
+Callback URL: The url provided in sendDeleteAccountVerification is a pre-generated link that deletes the user data when accessed.
+delete-user.ts
+
+await authClient.deleteUser({
+    callbackURL: "/goodbye" // you can provide a callback URL to redirect after deletion
+});
+Authentication Check: The user must be signed in to the account they’re attempting to delete. If they aren’t signed in, the deletion process will fail.
+If you have sent a custom URL, you can use the deleteUser method with the token to delete the user.
+
+delete-user.ts
+
+await authClient.deleteUser({
+    token
+});
+Authentication Requirements
+To delete a user, the user must meet one of the following requirements:
+
+A valid password
+if the user has a password, they can delete their account by providing the password.
+
+delete-user.ts
+
+await authClient.deleteUser({
+    password: "password"
+});
+Fresh session
+The user must have a fresh session token, meaning the user must have signed in recently. This is checked if the password is not provided.
+
+By default session.freshAge is set to 60 * 60 * 24 (1 day). You can change this value by passing the session object to the auth configuration. If it is set to 0, the freshness check is disabled.
+
+delete-user.ts
+
+await authClient.deleteUser();
+The user must provide a token generated by the sendDeleteAccountVerification callback.
+delete-user.ts
+
+await authClient.deleteUser({
+    token
+});
+Callbacks
+beforeDelete: This callback is called before the user is deleted. You can use this callback to perform any cleanup or additional checks before deleting the user.
+
+auth.ts
+
+export const auth = betterAuth({
+    user: {
+        deleteUser: {
+            enabled: true,
+            beforeDelete: async (user) => {
+                // Perform any cleanup or additional checks here
+            },
+        },
+    },
+});
+you can also throw APIError to interrupt the deletion process.
+
+auth.ts
+
+import { betterAuth } from "better-auth";
+import { APIError } from "better-auth/api";
+ 
+export const auth = betterAuth({
+    user: {
+        deleteUser: {
+            enabled: true,
+            beforeDelete: async (user, request) => {
+                if (user.email.includes("admin")) {
+                    throw new APIError("BAD_REQUEST", {
+                        message: "Admin accounts can't be deleted",
+                    });
+                }
+            },
+        },
+    },
+});
+afterDelete: This callback is called after the user is deleted. You can use this callback to perform any cleanup or additional actions after the user is deleted.
+
+auth.ts
+
+export const auth = betterAuth({
+    user: {
+        deleteUser: {
+            enabled: true,
+            afterDelete: async (user, request) => {
+                // Perform any cleanup or additional actions here
+            },
+        },
+    },
+});
+Accounts
+Better Auth supports multiple authentication methods. Each authentication method is called a provider. For example, email and password authentication is a provider, Google authentication is a provider, etc.
+
+When a user signs in using a provider, an account is created for the user. The account stores the authentication data returned by the provider. This data includes the access token, refresh token, and other information returned by the provider.
+
+Account table
+The account table stores the authentication data of the user. The account table has the following fields:
+
+id: The unique identifier of the account.
+userId: The id of the user.
+accountId: The id of the account provided by the OAuth provider. (optional)
+providerId: The id of the provider. (optional)
+accessToken: The access token of the account. Returned by the provider. (optional)
+refreshToken: The refresh token of the account. Returned by the provider. (optional)
+expiresAt: The time when the access token expires. (optional)
+password: The password of the account. Mainly used for email and password authentication. (optional)
+List User Accounts
+To list user accounts you can use client.user.listAccounts method. Which will return all accounts associated with a user.
+
+
+const accounts = await authClient.listAccounts();
+Account Linking
+Account linking enables users to associate multiple authentication methods with a single account. With Better Auth, users can connect additional social sign-ons or OAuth providers to their existing accounts if the provider confirms the user's email as verified.
+
+If account linking is disabled, no accounts can be linked, regardless of the provider or email verification status.
+
+auth.ts
+
+const auth = new BetterAuth({
+    account: {
+        accountLinking: {
+            enabled: true, 
+        }
+    },
+});
+Forced Linking
+You can specify a list of "trusted providers." When a user logs in using a trusted provider, their account will be automatically linked even if the provider doesn’t confirm the email verification status. Use this with caution as it may increase the risk of account takeover.
+
+auth.ts
+
+const auth = new BetterAuth({
+    account: {
+        accountLinking: {
+            enabled: true,
+            trustedProviders: ["google", "github"]
+        }
+    },
+});
+Manually Linking Accounts
+Users already signed in can manually link their account to additional social providers or credential-based accounts.
+
+Linking Social Accounts: Use the user.linkSocial method on the client to link a social provider to the user's account.
+
+
+await authClient.linkSocial({
+    provider: "google", // Provider to link
+    callbackURL: "/callback" // Callback URL after linking completes
+});
+If you want your users to be able to link a social account with a different email address than the user, or if you want to use a provider that does not return email addresses, you will need to enable this in the account linking settings.
+
+auth.ts
+
+const auth = betterAuth({
+    account: {
+        accountLinking: {
+            allowDifferentEmails: true
+        }
+    },
+});
+Linking Credential-Based Accounts: To link a credential-based account (e.g., email and password), users can initiate a "forgot password" flow, or you can call the setPassword method on the server.
+
+
+await auth.api.setPassword({
+    headers: /* headers containing the user's session token */,
+    password: /* new password */
+});
+setPassword can't be called from the client for security reasons.
+
+Account Unlinking
+You can unlink a user account by providing a providerId.
+
+
+await authClient.unlinkAccount({
+    providerId: "google"
+});
+If the providerId doesn't exist, it will throw an error. Additionally, if the user only has one account, the unlinking process will fail to prevent account lockout.
+
+
+
+
+Email & Password
+Email and password authentication is a common method used by many applications. Better Auth provides a built-in email and password authenticator that you can easily integrate into your project.
+
+If you prefer username-based authentication, check out the username plugin. It extends the email and password authenticator with username support.
+
+Enable Email and Password
+To enable email and password authentication, you need to set the emailAndPassword.enabled option to true in the auth configuration.
+
+auth.ts
+
+import { betterAuth } from "better-auth";
+ 
+export const auth = betterAuth({
+  emailAndPassword: { 
+    enabled: true, 
+  }, 
+});
+If it's not enabled, it'll not allow you to sign in or sign up with email and password.
+
+Usage
+Sign Up
+To sign a user up, you can use the signUp.email function provided by the client. The signUp function takes an object with the following properties:
+
+email: The email address of the user.
+password: The password of the user. It should be at least 8 characters long and max 32 by default.
+name: The name of the user.
+image: The image of the user. (optional)
+auth-client.ts
+
+const { data, error } = await authClient.signUp.email({
+  email: "test@example.com",
+  password: "password1234",
+  name: "test",
+  image: "https://example.com/image.png",
+});
+Sign In
+To sign a user in, you can use the signIn.email function provided by the client. The signIn function takes an object with the following properties:
+
+email: The email address of the user.
+password: The password of the user.
+rememberMe: If false, the user will be signed out when the browser is closed. (optional) (default: true)
+callbackURL: The URL to redirect to after the user signs in. (optional)
+auth-client.ts
+
+const { data, error } = await authClient.signIn.email({
+  email: "test@example.com",
+  password: "password1234",
+});
+Sign Out
+To sign a user out, you can use the signOut function provided by the client.
+
+auth-client.ts
+
+await authClient.signOut();
+you can pass fetchOptions to redirect onSuccess
+
+auth-client.ts
+
+await authClient.signOut({
+  fetchOptions: {
+    onSuccess: () => {
+      router.push("/login"); // redirect to login page
+    },
+  },
+});
+Email Verification
+To enable email verification, you need to pass a function that sends a verification email with a link. The sendVerificationEmail function takes a data object with the following properties:
+
+user: The user object.
+url: The url to send to the user which contains the token.
+token: A verification token used to complete the email verification.
+and a request object as the second parameter.
+
+auth.ts
+
+import { betterAuth } from "better-auth";
+import { sendEmail } from "./email"; // your email sending function
+ 
+export const auth = betterAuth({
+  emailVerification: {
+    sendVerificationEmail: async ( { user, url, token }, request) => {
+      await sendEmail({
+        to: user.email,
+        subject: "Verify your email address",
+        text: `Click the link to verify your email: ${url}`,
+      });
+    },
+  },
+});
+On the client side you can use sendVerificationEmail function to send verification link to user. This will trigger the sendVerificationEmail function you provided in the auth configuration.
+
+Once the user clicks on the link in the email, if the token is valid, the user will be redirected to the URL provided in the callbackURL parameter. If the token is invalid, the user will be redirected to the URL provided in the callbackURL parameter with an error message in the query string ?error=invalid_token.
+
+Require Email Verification
+If you enable require email verification, users must verify their email before they can log in. And every time a user tries to sign in, sendVerificationEmail is called.
+
+This only works if you have sendVerificationEmail implemented and if the user is trying to sign in with email and password.
+
+auth.ts
+
+export const auth = betterAuth({
+  emailAndPassword: {
+    requireEmailVerification: true,
+  },
+});
+If a user tries to sign in without verifying their email, you can handle the error and show a message to the user.
+
+auth-client.ts
+
+await authClient.signIn.emailAndPassword(
+  {
+    email: "email@example.com",
+    password: "password",
+  },
+  {
+    onError: (ctx) => {
+      // Handle the error
+      if (ctx.error.status === 403) {
+        alert("Please verify your email address");
+      }
+      //you can also show the original error message
+      alert(ctx.error.message);
+    },
+  }
+);
+Triggering manually Email Verification
+You can trigger the email verification manually by calling the sendVerificationEmail function.
+
+
+await authClient.sendVerificationEmail({
+  email: "user@email.com",
+  callbackURL: "/", // The redirect URL after verification
+});
+Forget Password
+To allow users to reset a password first you need to provide sendResetPassword function to the email and password authenticator. The sendResetPassword function takes a data object with the following properties:
+
+user: The user object.
+url: The url to send to the user which contains the token.
+token: A verification token used to complete the password reset.
+and a request object as the second parameter.
+
+auth.ts
+
+import { betterAuth } from "better-auth";
+import { sendEmail } from "./email"; // your email sending function
+ 
+export const auth = betterAuth({
+  emailAndPassword: {
+    enabled: true,
+    sendResetPassword: async ({user, url, token}, request) => {
+      await sendEmail({
+        to: user.email,
+        subject: "Reset your password",
+        text: `Click the link to reset your password: ${url}`,
+      });
+    },
+  },
+});
+Once you configured your server you can call forgetPassword function to send reset password link to user. If the user exists, it will trigger the sendResetPassword function you provided in the auth config.
+
+It takes an object with the following properties:
+
+email: The email address of the user.
+redirectTo: The URL to redirect to after the user clicks on the link in the email. If the token is valid, the user will be redirected to this URL with the token in the query string. If the token is invalid, the user will be redirected to this URL with an error message in the query string ?error=invalid_token.
+auth-client.ts
+
+const { data, error } = await authClient.forgetPassword({
+  email: "test@example.com",
+  redirectTo: "/reset-password",
+});
+When a user clicks on the link in the email, they will be redirected to the reset password page. You can add the reset password page to your app. Then you can use resetPassword function to reset the password. It takes an object with the following properties:
+
+newPassword: The new password of the user.
+auth-client.ts
+
+const token = new URLSearchParams(window.location.search).get("token");
+if (!token) {
+  // Handle the error
+}
+const { data, error } = await authClient.resetPassword({
+  newPassword: "password1234",
+  token,
+});
+Configuration
+Password
+
+Better Auth stores passwords inside the account table with providerId set to credential.
+
+Password Hashing: Better Auth uses scrypt to hash passwords. The scrypt algorithm is designed to be slow and memory-intensive to make it difficult for attackers to brute force passwords. OWSAP recommends using scrypt if argon2id is not available. We decided to use scrypt because it's natively supported by Node.js.
+
+You can pass custom password hashing algorithm by setting passwordHasher option in the auth configuration.
+
+auth.ts
+
+import { betterAuth } from "better-auth"
+import { scrypt } from "scrypt"
+ 
+export const auth = betterAuth({
+    //...rest of the options
+    emailAndPassword: {
+        password: {
+            hash: // your custom password hashing function
+            verify: // your custom password verification function
+        }
+    }
+})
+Prop	Type	Default
+enabled
+
+boolean
+false
+minPasswordLength
+
+number
+8
+maxPasswordLength
+
+number
+128
+sendResetPassword
+
+function
+-
+password
+
+object
+-
+
+
+
+
+
+
+
+GitHub
+Get your GitHub credentials
+To use GitHub sign in, you need a client ID and client secret. You can get them from the GitHub Developer Portal.
+
+Make sure to set the redirect URL to http://localhost:3000/api/auth/callback/github for local development. For production, you should set it to the URL of your application. If you change the base path of the auth routes, you should update the redirect URL accordingly.
+
+Configure the provider
+To configure the provider, you need to import the provider and pass it to the socialProviders option of the auth instance.
+
+auth.ts
+
+import { betterAuth } from "better-auth"
+ 
+export const auth = betterAuth({
+    socialProviders: {
+        github: { 
+            clientId: process.env.GITHUB_CLIENT_ID as string, 
+            clientSecret: process.env.GITHUB_CLIENT_SECRET as string, 
+        }, 
+    },
+})
+Sign In with GitHub
+To sign in with GitHub, you can use the signIn.social function provided by the client. The signIn function takes an object with the following properties:
+
+provider: The provider to use. It should be set to github.
+auth-client.ts
+
+import { createAuthClient } from "better-auth/client"
+const authClient =  createAuthClient()
+ 
+const signIn = async () => {
+    const data = await authClient.signIn.social({
+        provider: "github"
+    })
+}
+
+
+
+
+
+Next.js integration
+Better Auth can be easily integrated with Next.js. It'll also comes with utilities to make it easier to use Better Auth with Next.js.
+
+Before you start, make sure you have a Better Auth instance configured. If you haven't done that yet, check out the installation.
+
+Create API Route
+We need to mount the handler to an API route. Create a route file inside /api/auth/[...all] directory. And add the following code:
+
+api/auth/[...all]/route.ts
+
+import { auth } from "@/lib/auth";
+import { toNextJsHandler } from "better-auth/next-js";
+ 
+export const { GET, POST } = toNextJsHandler(auth.handler);
+You can change the path on your better-auth configuration but it's recommended to keep it as /api/auth/[...all]
+
+For pages route, you need to use toNodeHandler instead of toNextJsHandler and set bodyParser to false in the config object. Here is an example:
+
+pages/api/auth/[...all].ts
+
+import { toNodeHandler } from "better-auth/node"
+import { auth } from "@/lib/auth"
+ 
+// Disallow body parsing, we will parse it manually
+export const config = { api: { bodyParser: false } }
+ 
+export default toNodeHandler(auth.handler)
+Create a client
+Create a client instance. You can name the file anything you want. Here we are creating client.ts file inside the lib/ directory.
+
+auth-client.ts
+
+import { createAuthClient } from "better-auth/react" // make sure to import from better-auth/react
+ 
+export const authClient =  createAuthClient({
+    //you can pass client configuration here
+})
+Once you have created the client, you can use it to sign up, sign in, and perform other actions. Some of the actions are reactive. The client use nano-store to store the state and re-render the components when the state changes.
+
+The client also uses better-fetch to make the requests. You can pass the fetch configuration to the client.
+
+RSC and Server actions
+The api object exported from the auth instance contains all the actions that you can perform on the server. Every endpoint made inside Better Auth is a invocable as a function. Including plugins endpoints.
+
+Example: Getting Session on a server action
+
+server.ts
+
+import { auth } from "@/lib/auth"
+import { headers } from "next/headers"
+ 
+const someAuthenticatedAction = async () => {
+    "use server";
+    const session = await auth.api.getSession({
+        headers: await headers()
+    })
+};
+Example: Getting Session on a RSC
+
+
+import { auth } from "@/lib/auth"
+import { headers } from "next/headers"
+ 
+export async function ServerComponent() {
+    const session = await auth.api.getSession({
+        headers: await headers()
+    })
+    if(!session) {
+        return <div>Not authenticated</div>
+    }
+    return (
+        <div>
+            <h1>Welcome {session.user.name}</h1>
+        </div>
+    )
+}
+Server Action Cookies
+When you call a function that needs to set cookies, like signInEmail or signUpEmail in a server action, cookies won’t be set. This is because server actions need to use the cookies helper from Next.js to set cookies.
+
+To simplify this, you can use the nextCookies plugin, which will automatically set cookies for you whenever a Set-Cookie header is present in the response.
+
+auth.ts
+
+import { betterAuth } from "better-auth";
+import { nextCookies } from "better-auth/next-js";
+ 
+export const auth = betterAuth({
+    //...your config
+    plugins: [nextCookies()] // make sure this is the last plugin in the array
+})
+Now, when you call functions that set cookies, they will be automatically set.
+
+
+"use server";
+import { auth } from "@/lib/auth"
+ 
+const signIn = async () => {
+    await auth.api.signInEmail({
+        body: {
+            email: "user@email.com",
+            password: "password",
+        }
+    })
+}
+Middleware
+In Next.js, middleware doesn’t have access to many Node APIs, so you can’t use the usual auth instance to validate sessions directly. Instead, you can make a request to the API route to get the session using the request headers.
+
+Here’s how it looks:
+
+We're using better-fetch to make the request to the API route. You can use any fetch library you want.
+
+
+import { betterFetch } from "@better-fetch/fetch";
+import type { auth } from "@/lib/auth";
+import { NextResponse, type NextRequest } from "next/server";
+ 
+type Session = typeof auth.$Infer.Session;
+ 
+export default async function authMiddleware(request: NextRequest) {
+	const { data: session } = await betterFetch<Session>(
+		"/api/auth/get-session",
+		{
+			baseURL: request.nextUrl.origin,
+			headers: {
+				//get the cookie from the request
+				cookie: request.headers.get("cookie") || "",
+			},
+		},
+	);
+ 
+	if (!session) {
+		return NextResponse.redirect(new URL("/sign-in", request.url));
+	}
+	return NextResponse.next();
+}
+ 
+export const config = {
+	matcher: ["/dashboard"],
+};
+
+
+
+
+
+
+
+Two-Factor Authentication (2FA)
+
+OTP TOTP Backup Codes Trusted Devices
+
+Two-Factor Authentication (2FA) adds an extra security step when users log in. Instead of just using a password, they'll need to provide a second form of verification. This makes it much harder for unauthorized people to access accounts, even if they've somehow gotten the password.
+
+This plugin offers two main methods to do a second factor verification:
+
+OTP (One-Time Password): A temporary code sent to the user's email or phone.
+TOTP (Time-based One-Time Password): A code generated by an app on the user's device.
+Additional features include:
+
+Generating backup codes for account recovery
+Enabling/disabling 2FA
+Managing trusted devices
+Installation
+Add the plugin to your auth config
+Add the two-factor plugin to your auth configuration and specify your app name as the issuer.
+
+auth.ts
+
+import { betterAuth } from "better-auth"
+import { twoFactor } from "better-auth/plugins"
+ 
+export const auth = betterAuth({
+    // ... other config options
+    appName: "My App", // provide your app name. It'll be used as an issuer.
+    plugins: [
+        twoFactor() 
+    ]
+})
+Migrate the database
+Run the migration or generate the schema to add the necessary fields and tables to the database.
+
+migrate
+
+npx @better-auth/cli migrate
+
+
+generate
+npx @better-auth/cli generate
+
+
+
+See the Schema section to add the fields manually.
+
+Add the client plugin
+Add the client plugin and Specify where the user should be redirected if they need to verify 2nd factor
+
+auth-client.ts
+
+import { createAuthClient } from "better-auth/client"
+import { twoFactorClient } from "better-auth/client/plugins"
+ 
+const authClient = createAuthClient({
+    plugins: [
+        twoFactorClient()
+    ]
+})
+Usage
+Enabling 2FA
+To enable two-factor authentication, call twoFactor.enable with the user's password:
+
+two-factor.ts
+
+const { data } = await authClient.twoFactor.enable({
+    password: "password" // user password required
+})
+When 2FA is enabled:
+
+An encrypted secret and backupCodes are generated.
+enable returns totpURI and backupCodes.
+Note: twoFactorEnabled won’t be set to true until the user verifies their TOTP code.
+
+To verify, display the QR code for the user to scan with their authenticator app. After they enter the code, call verifyTotp:
+
+
+await authClient.twoFactor.verifyTotp({
+    code: "" // user input
+})
+You can skip verification by setting skipVerificationOnEnable to true in your plugin config.
+
+Sign In with 2FA
+When a user with 2FA enabled tries to sign in via email, the response will contain twoFactorRedirect set to true. This indicates that the user needs to verify their 2FA code.
+
+sign-in.ts
+
+await authClient.signIn.email({
+    email: "user@example.com",
+    password: "password123",
+})
+You can handle this in the onSuccess callback or by providing a onTwoFactorRedirect callback in the plugin config.
+
+sign-in.ts
+
+import { createAuthClient } from "better-auth/client";
+import { twoFactorClient } from "better-auth/client/plugins";
+ 
+const authClient = createAuthClient({
+    plugins: [twoFactorClient({
+        onTwoFactorRedirect(){
+            // Handle the 2FA verification globally
+        }
+    })]
+})
+Or you can handle it in place:
+
+
+await authClient.signIn.email({
+        email: "user@example.com",
+        password: "password123",
+    }, {
+        async onSuccess(context) {
+            if (context.data.twoFactorRedirect) {
+                // Handle the 2FA verification in place
+            }
+        }
+    }
+})
+Using auth.api
+When you call auth.api.signInEmail on the server, and the user has 2FA enabled, it will, by default, respond with an object where twoFactorRedirect is set to true. This behavior isn’t inferred in TypeScript, which can be misleading. We recommend passing asResponse: true to receive the Response object instead.
+
+
+const response = await auth.api.signInEmail({
+    email: "my-email@email.com",
+    password: "secure-password",
+    asResponse: true
+})
+TOTP
+TOTP (Time-Based One-Time Password) is an algorithm that generates a unique password for each login attempt using time as a counter. Every fixed interval (Better Auth defaults to 30 seconds), a new password is generated. This addresses several issues with traditional passwords: they can be forgotten, stolen, or guessed. OTPs solve some of these problems, but their delivery via SMS or email can be unreliable (or even risky, considering it opens new attack vectors).
+
+TOTP, however, generates codes offline, making it both secure and convenient. You just need an authenticator app on your phone, and you’re set—no internet required.
+
+Getting TOTP URI
+After enabling 2FA, you can get the TOTP URI to display to the user. This URI is generated by the server using the secret and issuer and can be used to generate a QR code for the user to scan with their authenticator app.
+
+
+const { data, error } = await authClient.twoFactor.getTotpUri({
+    password: "password" // user password required
+})
+Example: Using React
+
+user-card.tsx
+
+import QRCode from "react-qr-code";
+ 
+export default function UserCard(){
+    const { data: session } = client.useSession();
+	const { data: qr } = useQuery({
+		queryKey: ["two-factor-qr"],
+		queryFn: async () => {
+			const res = await authClient.twoFactor.getTotpUri();
+			return res.data;
+		},
+		enabled: !!session?.user.twoFactorEnabled,
+	});
+    return (
+        <QRCode value={qr?.totpURI || ""} />
+   )
+}
+By default the issuer for TOTP is set to the app name provided in the auth config or if not provided it will be set to Better Auth. You can override this by passing issuer to the plugin config.
+
+Verifying TOTP
+After the user has entered their 2FA code, you can verify it using twoFactor.verifyTotp method.
+
+
+const verifyTotp = async (code: string) => {
+    const { data, error } = await authClient.twoFactor.verifyTotp({ code })
+}
+OTP
+OTP (One-Time Password) is similar to TOTP but a random code is generated and sent to the user's email or phone.
+
+Before using OTP to verify the second factor, you need to configure sendOTP in your Better Auth instance. This function is responsible for sending the OTP to the user's email, phone, or any other method supported by your application.
+
+auth.ts
+
+import { betterAuth } from "better-auth"
+import { twoFactor } from "better-auth/plugins"
+ 
+export const auth = betterAuth({
+    plugins: [
+        twoFactor({
+          	otpOptions: {
+				async sendOTP({ user, otp }, request) {
+                    // send otp to user
+				},
+			},
+        })
+    ]
+})
+Sending OTP
+Sending an OTP is done by calling the twoFactor.sendOtp function. This function will trigger your sendOTP implementation that you provided in the Better Auth configuration.
+
+
+const { data, error } = await authClient.twoFactor.sendOtp()
+if (data) {
+    // redirect or show the user to enter the code
+}
+Verifying OTP
+After the user has entered their OTP code, you can verify it
+
+
+const verifyOtp = async (code: string) => {
+    await authClient.twoFactor.verifyOtp({ code }, {
+        onSuccess(){
+            //redirect the user on success
+        },
+        onError(ctx){
+            alert(ctx.error.message)
+        }
+    })
+}
+Backup Codes
+Backup codes are generated and stored in the database. This can be used to recover access to the account if the user loses access to their phone or email.
+
+Generating Backup Codes
+Generate backup codes for account recovery:
+
+
+const { data, error } = await authClient.twoFactor.generateBackupCodes({
+    password: "password" // user password required
+})
+if (data) {
+    // Show the backup codes to the user
+}
+Using Backup Codes
+You can now allow users to provider backup code as account recover method.
+
+
+await authClient.twoFactor.verifyBackupCode({code: ""}, {
+    onSuccess(){
+        //redirect the user on success
+    },
+    onError(ctx){
+        alert(ctx.error.message)
+    }
+})
+once a backup code is used, it will be removed from the database and can't be used again.
+
+Viewing Backup Codes
+You can view the backup codes at any time by calling viewBackupCodes. This action can only be performed on the server using auth.api.
+
+
+await auth.api.viewBackupCodes({
+    body: {
+        userId: "user-id"
+    }
+})
+Trusted Devices
+You can mark a device as trusted by passing trustDevice to verifyTotp or verifyOtp.
+
+
+const verify2FA = async (code: string) => {
+    const { data, error } = await authClient.twoFactor.verifyTotp({
+        code,
+        callbackURL: "/dashboard",
+        trustDevice: true // Mark this device as trusted
+    })
+    if (data) {
+        // 2FA verified and device trusted
+    }
+}
+When trustDevice is set to true, the current device will be remembered for 60 days. During this period, the user won't be prompted for 2FA on subsequent sign-ins from this device. The trust period is refreshed each time the user signs in successfully.
+
+Issuer
+By adding an issuer you can set your application name for the 2fa application.
+
+For example, if your user uses Google Auth, the default appName will show up as Better Auth. However, by using the following code, it will show up as my-app-name.
+
+
+twoFactor({
+    issuer: "my-app-name"
+})
+Schema
+The plugin requires 1 additional fields in the user table and 1 additional table to store the two factor authentication data.
+
+Field Name	Type	Key	Description
+twoFactorEnabled	boolean	?	Whether two factor authentication is enabled for the user.
+Table: twoFactor
+
+Field Name	Type	Key	Description
+secret	string	?	The secret used to generate the TOTP code.
+backupCodes	string	?	The backup codes used to recover access to the account if the user loses access to their phone or email.
+Options
+Server
+twoFactorTable: The name of the table that stores the two factor authentication data. Default: twoFactor.
+
+skipVerificationOnEnable: Skip the verification process before enabling two factor for a user.
+
+Issuer: The issuer is the name of your application. It's used to generate TOTP codes. It'll be displayed in the authenticator apps.
+
+TOTP options
+
+these are options for TOTP.
+
+Prop	Type	Default
+digits
+
+number
+6
+period
+
+number
+30
+OTP options
+
+these are options for OTP.
+
+Prop	Type	Default
+sendOTP
+
+function
+-
+period
+
+number
+30
+Backup Code Options
+
+backup codes are generated and stored in the database when the user enabled two factor authentication. This can be used to recover access to the account if the user loses access to their phone or email.
+
+Prop	Type	Default
+amount
+
+number
+10
+length
+
+number
+10
+customBackupCodesGenerate
+
+function
+-
+Client
+To use the two factor plugin in the client, you need to add it on your plugins list.
+
+auth-client.ts
+
+import { createAuthClient } from "better-auth/client"
+import { twoFactorClient } from "better-auth/client/plugins"
+ 
+const authClient =  createAuthClient({
+    plugins: [
+        twoFactorClient({ 
+            onTwoFactorRedirect(){
+                window.location.href = "/2fa" // Handle the 2FA verification redirect
+            }
+        }) 
+    ]
+})
+Options
+
+onTwoFactorRedirect: A callback that will be called when the user needs to verify their 2FA code. This can be used to redirect the user to the 2FA page.
+
+
+
+
+
+Magic link
+
+
+Magic link or email link is a way to authenticate users without a password. When a user enters their email, a link is sent to their email. When the user clicks on the link, they are authenticated.
+
+Installation
+Add the server Plugin
+Add the magic link plugin to your server:
+
+server.ts
+
+import { betterAuth } from "better-auth";
+import { magicLink } from "better-auth/plugins";
+ 
+export const auth = betterAuth({
+    plugins: [
+        magicLink({
+            sendMagicLink: async ({ email, token, url }, request) => {
+                // send email to user
+            }
+        })
+    ]
+})
+Add the client Plugin
+Add the magic link plugin to your client:
+
+auth-client.ts
+
+import { createAuthClient } from "better-auth/client";
+import { magicLinkClient } from "better-auth/client/plugins";
+const authClient =  createAuthClient({
+    plugins: [
+        magicLinkClient()
+    ]
+});
+Usage
+Sign In with Magic Link
+To sign in with a magic link, you need to call signIn.magicLink with the user's email address. The sendMagicLink function is called to send the magic link to the user's email.
+
+magic-link.ts
+
+const { data, error } = await authClient.signIn.magicLink({
+    email: "user@email.com",
+    callbackURL: "/dashboard" //redirect after successful login (optional)
+});
+If the user has not signed up, unless disableSignUp is set to true, the user will be signed up automatically.
+
+Verify Magic Link
+When you send the URL generated by the sendMagicLink function to a user, clicking the link will authenticate them and redirect them to the callbackURL specified in the signIn.magicLink function. If an error occurs, the user will be redirected to the callbackURL with an error query parameter.
+
+If no callbackURL is provided, the user will be redirected to the root URL.
+
+If you want to handle the verification manually, (e.g, if you send the user a different url), you can use the verify function.
+
+magic-link.ts
+
+const { data, error } = await authClient.magicLink.verify({
+    query: {
+        token
+    }
+});
+Configuration Options
+sendMagicLink: The sendMagicLink function is called when a user requests a magic link. It takes an object with the following properties:
+
+email: The email address of the user.
+url: The url to be sent to the user. This url contains the token.
+token: The token if you want to send the token with custom url.
+and a request object as the second parameter.
+
+expiresIn: specifies the time in seconds after which the magic link will expire. The default value is 300 seconds (5 minutes).
+
+disableSignUp: If set to true, the user will not be able to sign up using the magic link. The default value is false.
+
+
+
+
+Email OTP
+The Email OTP plugin allows user to sign-in, verify their email, or reset their password using a one-time password (OTP) sent to their email address.
+
+Installation
+Add the plugin to your auth config
+To enable email otp in your app, you need to add the emailOTP plugin to your auth config.
+
+auth.ts
+
+import { betterAuth } from "better-auth"
+import { emailOTP } from "better-auth/plugins"
+ 
+export const auth = betterAuth({
+    // ... other config options
+    plugins: [
+        emailOTP({ 
+                async sendVerificationOTP({ email, otp, type}) { 
+					// Implement the sendVerificationOTP method to send the OTP to the user's email address
+				}, 
+        }) 
+    ]
+})
+Add the client plugin
+auth-client.ts
+
+import { createAuthClient } from "better-auth/client"
+import { emailOTPClient } from "better-auth/client/plugins"
+ 
+const authClient =  createAuthClient({
+    plugins: [
+        emailOTPClient()
+    ]
+})
+Usage
+Send OTP
+First, send an OTP to the user's email address.
+
+example.ts
+
+await authClient.emailOtp.sendVerificationOtp({
+    email: "user-email@email.com",
+    type: "sign-in" // or "email-verification", "forget-password"
+})
+SignIn with OTP
+Once the user provides the OTP, you can sign in the user using the signIn.emailOTP() method.
+
+example.ts
+
+const user = await authClient.signIn.emailOtp({
+    email: "user-email@email.com",
+    otp: "123456"
+})
+If the user is not registered, they'll be automatically registered. If you want to prevent this, you can pass disableSignUp as true in the options.
+
+Verify Email
+To verify the user's email address, use the verifyEmail() method.
+
+example.ts
+
+const user = await authClient.emailOtp.verifyEmail({
+    email: "user-email@email.com",
+    otp: "123456"
+})
+Reset Password
+To reset the user's password, use the resetPassword() method.
+
+example.ts
+
+await authClient.emailOtp.resetPassword({
+    email: "user-email@email.com",
+    otp: "123456",
+    password: "password"
+})
+Options
+sendVerificationOTP: A function that sends the OTP to the user's email address. The function receives an object with the following properties:
+email: The user's email address.
+otp: The OTP to send.
+type: The type of OTP to send. Can be "sign-in", "email-verification", or "forget-password".
+Example
+auth.ts
+
+import { betterAuth } from "better-auth"
+ 
+export const auth = betterAuth({
+    plugins: [
+        emailOTP({
+            async sendVerificationOTP({
+                email,
+                otp,
+                type
+            }) {
+                if (type === "sign-in") {
+                    // Send the OTP for sign-in
+                } else if (type === "email-verification") {
+                    // Send the OTP for email verification
+                } else {
+                    // Send the OTP for password reset
+                }
+            },
+        })
+    ]
+})
+otpLength: The length of the OTP. Defaults to 6.
+expiresIn: The expiry time of the OTP in seconds. Defaults to 300 seconds.
+auth.ts
+
+import { betterAuth } from "better-auth"
+ 
+export const auth = betterAuth({
+    plugins: [
+        emailOTP({
+            otpLength: 8,
+            expiresIn: 600
+        })
+    ]
+})
+sendVerificationOnSignUp: A boolean value that determines whether to send the OTP when a user signs up. Defaults to false.
+
+disableSignUp: A boolean value that determines whether to prevent automatic sign-up when the user is not registered. Defaults to false.
+
+
+
+Multi Session
+The multi-session plugin allows users to maintain multiple active sessions across different accounts in the same browser. This plugin is useful for applications that require users to switch between multiple accounts without logging out.
+
+Installation
+Add the plugin to your auth config
+auth.ts
+
+import { betterAuth } from "better-auth"
+import { multiSession } from "better-auth/plugins"
+ 
+export const auth = betterAuth({
+    plugins: [ 
+        multiSession(), 
+    ] 
+})
+Add the client Plugin
+Add the client plugin and Specify where the user should be redirected if they need to verify 2nd factor
+
+auth-client.ts
+
+import { createAuthClient } from "better-auth/client"
+import { multiSessionClient } from "better-auth/client/plugins"
+ 
+const authClient =  createAuthClient({
+    plugins: [
+        multiSessionClient()
+    ]
+})
+Usage
+Whenever a user logs in, the plugin will add additional cookie to the browser. This cookie will be used to maintain multiple sessions across different accounts.
+
+List all device sessions
+To list all active sessions for the current user, you can call the listDeviceSessions method.
+
+
+await authClient.multiSession.listDeviceSessions()
+on the server you can call listDeviceSessions method.
+
+
+await auth.api.listDeviceSessions()
+Set active session
+To set the active session, you can call the setActive method.
+
+
+await authClient.multiSession.setActive({
+    sessionToken: "session-token"
+})
+Revoke a session
+To revoke a session, you can call the revoke method.
+
+
+await authClient.multiSession.revoke({
+    sessionToken: "session-token"
+})
+Revoke all sessions
+To revoke all sessions, you can call the revokeAll method.
+
+
+await authClient.multiSession.revokeAll();
+Signout Behaviour
+When a user logs out, the plugin will revoke all active sessions for the user.
+
+Max Sessions
+You can specify the maximum number of sessions a user can have by passing the maximumSessions option to the plugin. By default, the plugin allows 5 sessions per device.
+
+auth.ts
+
+import { betterAuth } from "better-auth"
+ 
+export const auth = betterAuth({
+    plugins: [
+        multiSession({
+            maximumSessions: 3
+        })
+    ]
+})
+
+
+OAuth Proxy
+A proxy plugin, that allows you to proxy OAuth requests. Useful for development and preview deployments where the redirect URL can't be known in advance to add to the OAuth provider.
+
+Installation
+Add the plugin to your auth config
+auth.ts
+
+import { betterAuth } from "better-auth"
+import { oAuthProxy } from "better-auth/plugins"
+ 
+export const auth = betterAuth({
+    plugins: [ 
+        oAuthProxy(), 
+    ] 
+})
+Add redirect URL to your OAuth provider
+For the proxy server to work properly, you’ll need to pass the redirect URL of your main production app registered with the OAuth provider in your social provider config. This needs to be done for each social provider you want to proxy requests for.
+
+
+export const auth = betterAuth({
+   plugins: [
+       oAuthProxy(),
+   ], 
+   socialProviders: {
+        github: {
+            clientId: "your-client-id",
+            clientSecret: "your-client-secret",
+            redirectURI: "https://my-main-app.com/api/auth/callback/github". 
+        }
+   }
+})
+How it works
+The plugin adds an endpoint to your server that proxies OAuth requests. When you initiate a social sign-in, it sets the redirect URL to this proxy endpoint. After the OAuth provider redirects back to your server, the plugin then forwards the user to the original callback URL.
+
+
+await authClient.signIn.social({
+    provider: "github",
+    callbackURL: "/dashboard" // the plugin will override this to something like "http://localhost:3000/api/auth/oauth-proxy?callbackURL=/dashboard"
+})
+When the OAuth provider returns the user to your server, the plugin automatically redirects them to the intended callback URL.
+
+To share cookies between the proxy server and your main server it uses url query parameters to pass the cookies encrypted in the URL. This is secure as the cookies are encrypted and can only be decrypted by the server.
+
+Options
+currentURL: The application's current URL is automatically determined by the plugin. It first it check for the request URL if invoked by a client, then it checks the base URL from popular hosting providers, and finally falls back to the baseURL in your auth config. If the URL isn’t inferred correctly, you can specify it manually here.
+
+
+
+Open API
+This is a plugin that provides an Open API reference for Better Auth. It shows all endpoints added by plugins and the core. It also provides a way to test the endpoints. It uses Scalar to display the Open API reference.
+
+This plugin is still in the early stages of development. We are working on adding more features to it and filling in the gaps.
+
+Installation
+Add the plugin to your auth config
+auth.ts
+
+import { betterAuth } from "better-auth"
+import { openAPI } from "better-auth/plugins"
+ 
+export const auth = betterAuth({
+    plugins: [ 
+        openAPI(), 
+    ] 
+})
+Navigate to /api/auth/reference to view the Open API reference
+Each plugin endpoints are grouped by the plugin name. The core endpoints are grouped under the Default group. And Model schemas are grouped under the Models group.
+
+Open API reference
+
+Usage
+The Open API reference is generated using the OpenAPI 3.0 specification. You can use the reference to generate client libraries, documentation, and more.
+
+The reference is generated using the Scalar library. Scalar provides a way to view and test the endpoints. You can test the endpoints by clicking on the Try it out button and providing the required parameters.
+
+Open API reference
+
+Generated Schema
+To get the generated Open API schema directly as JSON, you can do auth.api.generateOpenAPISchema(). This will return the Open API schema as a JSON object.
+
+
+import { auth } from "~/lib/auth"
+ 
+const openAPISchema = await auth.api.generateOpenAPISchema()
+console.log(openAPISchema)
+Configuration
+path - The path where the Open API reference is served. Default is /api/auth/reference. You can change it to any path you like, but keep in mind that it will be appended to the base path of your auth server.
+
+disableDefaultReference - If set to true, the default Open API reference UI by Scalar will be disabled. Default is false.
+
