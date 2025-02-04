@@ -40,7 +40,9 @@ export function SignUp() {
             toast.error(ctx.error.message);
           },
           onSuccess: async () => {
-            router.push("/dashboard");
+            router.push(
+              `/verify-email?email=${encodeURIComponent(data.email)}`
+            );
           },
         },
       });
