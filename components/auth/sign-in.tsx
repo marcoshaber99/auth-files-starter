@@ -17,6 +17,7 @@ import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { SignInInput, signInSchema } from "@/lib/schemas";
+import { GitHubSignInButton } from "./github-sign-in-button";
 
 export default function SignIn() {
   const router = useRouter();
@@ -50,15 +51,15 @@ export default function SignIn() {
   };
 
   return (
-    <Card className="max-w-md">
+    <Card className="max-w-md w-full">
       <CardHeader>
         <CardTitle className="text-lg md:text-xl">Sign In</CardTitle>
         <CardDescription className="text-xs md:text-sm">
           Enter your email below to login to your account
         </CardDescription>
       </CardHeader>
-      <CardContent>
-        <form onSubmit={handleSubmit(onSubmit)} className="grid gap-4">
+      <CardContent className="space-y-4">
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
           <div className="grid gap-2">
             <Label htmlFor="email">Email</Label>
             <Input
@@ -92,10 +93,23 @@ export default function SignIn() {
             {isSubmitting ? (
               <Loader2 size={16} className="animate-spin" />
             ) : (
-              "Login"
+              "Sign in with Email"
             )}
           </Button>
         </form>
+
+        <div className="relative">
+          <div className="absolute inset-0 flex items-center">
+            <span className="w-full border-t" />
+          </div>
+          <div className="relative flex justify-center text-xs uppercase">
+            <span className="bg-background px-2 text-muted-foreground">
+              Or continue with
+            </span>
+          </div>
+        </div>
+
+        <GitHubSignInButton />
       </CardContent>
     </Card>
   );

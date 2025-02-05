@@ -14,12 +14,22 @@ if (!process.env.BETTER_AUTH_URL) {
   throw new Error("BETTER_AUTH_URL environment variable is required");
 }
 
+if (!process.env.GITHUB_CLIENT_ID || !process.env.GITHUB_CLIENT_SECRET) {
+  throw new Error("GitHub OAuth credentials are required");
+}
+
 export const auth = betterAuth({
   appName: "Auth Starter",
   secret: process.env.BETTER_AUTH_SECRET,
   baseURL: process.env.BETTER_AUTH_URL, // Server-side URL
   emailAndPassword: {
     enabled: true,
+  },
+  socialProviders: {
+    github: {
+      clientId: process.env.GITHUB_CLIENT_ID,
+      clientSecret: process.env.GITHUB_CLIENT_SECRET,
+    },
   },
   database: drizzleAdapter(db, {
     provider: "pg",

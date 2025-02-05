@@ -3,20 +3,24 @@ import { SVGProps } from "react";
 export const Logo = (props: SVGProps<SVGSVGElement>) => {
   return (
     <svg
-      width="60"
-      height="45"
-      viewBox="0 0 60 45"
-      fill="none"
-      className="w-5 h-5"
+      width="24"
+      height="24"
+      viewBox="0 0 24 24"
       xmlns="http://www.w3.org/2000/svg"
+      className="stroke-foreground"
+      strokeWidth="1.5"
+      fill="none"
       {...props}
     >
-      <path
-        fillRule="evenodd"
-        clipRule="evenodd"
-        d="M0 0H15V15H30V30H15V45H0V30V15V0ZM45 30V15H30V0H45H60V15V30V45H45H30V30H45Z"
-        className="fill-black dark:fill-white"
-      />
+      <path d="M7.23,11.05H12L13,8.18h8.6l.95-1.91-.95-1.91H13L12,1.5H7.23A2.87,2.87,0,0,0,4.36,4.36V8.18A2.88,2.88,0,0,0,7.23,11.05Z" />
+      <line x1="8.18" y1="8.18" x2="8.18" y2="4.36" />
+      <line x1="18.68" y1="6.27" x2="18.68" y2="4.36" />
+      <line x1="15.82" y1="6.27" x2="15.82" y2="4.36" />
+      <path d="M13,8.18,15.79,11l-1.35,2.7,2,2,2,2,2,2-.66,2-2,.68-6.08-6.07L9,17.78,5.67,14.4a2.86,2.86,0,0,1-.13-3.91" />
+      <line x1="10.38" y1="11.05" x2="8.37" y2="13.05" />
+      <line x1="17.14" y1="19.13" x2="18.49" y2="17.78" />
+      <line x1="15.12" y1="17.1" x2="16.47" y2="15.75" />
+      <path d="M4.89,12.93a3.82,3.82,0,0,1-.53-7.49A3.82,3.82,0,0,1,8.18,6.62" />
     </svg>
   );
 };

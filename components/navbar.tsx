@@ -12,9 +12,7 @@ export function Navbar() {
             className="flex items-center gap-2 transition-opacity hover:opacity-80"
           >
             <Logo />
-            <span className="font-medium">Auth</span>
           </Link>
-
           <ModeToggle />
         </nav>
       </div>

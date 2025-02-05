@@ -25,6 +25,7 @@ export function SignOutButton({ className, ...props }: SignOutButtonProps) {
   return (
     <Button
       variant="outline"
+      size="sm"
       className={className}
       onClick={handleSignOut}
       {...props}
