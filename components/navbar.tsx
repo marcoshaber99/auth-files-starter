@@ -1,13 +1,11 @@
 import Link from "next/link";
 import { ModeToggle } from "@/components/mode-toggle";
 import { Logo } from "@/components/logo";
-import { auth } from "@/lib/auth";
-import { headers } from "next/headers";
+
+import { getServerSession } from "@/lib/auth-server";
 
 export async function Navbar() {
-  const session = await auth.api.getSession({
-    headers: await headers(),
-  });
+  const session = await getServerSession();
 
   const homeLink = session ? "/dashboard" : "/";
 

@@ -1,5 +1,5 @@
 import { Toaster } from "sonner";
-
+import { Navbar } from "@/components/navbar";
 export default function AuthLayout({
   children,
 }: {
@@ -7,8 +7,9 @@ export default function AuthLayout({
 }) {
   return (
     <div className="min-h-screen">
-      <Toaster />
+      <Navbar />
       {children}
+      <Toaster />
     </div>
   );
 }

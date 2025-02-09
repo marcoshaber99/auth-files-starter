@@ -1,6 +1,14 @@
 # Auth Files Starter
 
-A minimal starter template for authentication and file uploads with Next.js, Better Auth, and UploadThing.
+A modern, full-stack starter template for authentication and file upload functionality with Next.js.
+
+## Features ( so far )
+
+- 🔐 Authentication with email/password and GitHub
+- ✉️ Email verification with OTP
+- 🎨 Dark mode
+- 📱 Collapsible sidebar w/ Shadcn/ui
+- 📊 Dashboard
 
 ## Stack
 
@@ -9,13 +17,14 @@ A minimal starter template for authentication and file uploads with Next.js, Bet
 - Drizzle + PostgreSQL
 - React Email + Resend
 - Shadcn/ui + Tailwind
-- UploadThing
+- UploadThing (coming soon)
 
-## Todo
+## Progress
 
 - [x] Email/Password Auth
 - [x] Email Verification OTP
 - [x] GitHub Auth
+- [x] Simple Dashboard w/ Collapsible Sidebar (Shadcn)
 - [ ] File Uploads with UploadThing
 
 ## Setup
@@ -44,3 +53,18 @@ EMAIL_FROM_NAME=
 GITHUB_CLIENT_ID=
 GITHUB_CLIENT_SECRET=
 ```
+
+## Screenshots
+
+<div style="display: flex; gap: 10px;">
+  <img src="./public/readme-screenshots/sign-in-page.png" width="400" alt="Sign In" />
+  <img src="./public/readme-screenshots/dashboard.png" width="400" alt="Dashboard" />
+</div>
+
+## Contributing
+
+Feel free to open issues and pull requests!
+
+---
+
+If you find this helpful, consider giving it a ⭐️
