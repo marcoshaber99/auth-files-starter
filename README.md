@@ -15,8 +15,7 @@ A minimal starter template for authentication and file uploads with Next.js, Bet
 
 - [x] Email/Password Auth
 - [x] Email Verification OTP
-- [ ] Google Auth
-- [ ] GitHub Auth
+- [x] GitHub Auth
 - [ ] File Uploads with UploadThing
 
 ## Setup
@@ -42,4 +41,6 @@ DATABASE_URL=
 RESEND_API_KEY=
 EMAIL_FROM_ADDRESS=
 EMAIL_FROM_NAME=
+GITHUB_CLIENT_ID=
+GITHUB_CLIENT_SECRET=
 ```
