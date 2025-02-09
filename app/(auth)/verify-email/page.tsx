@@ -1,7 +1,7 @@
 "use client";
 
 import { useSearchParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
 import { authClient } from "@/lib/auth-client";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
@@ -17,7 +17,7 @@ import {
 } from "@/components/ui/card";
 import { Loader2 } from "lucide-react";
 
-export default function VerifyEmailPage() {
+function VerifyEmailForm() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const email = searchParams.get("email");
@@ -73,51 +73,71 @@ export default function VerifyEmailPage() {
   }
 
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center p-4">
-      <Card className="max-w-md w-full">
-        <CardHeader>
-          <CardTitle>Verify Your Email</CardTitle>
-          <CardDescription>
-            Enter the verification code sent to {email}
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="grid gap-4">
-            <div className="grid gap-2">
-              <Label htmlFor="otp">Verification Code</Label>
-              <Input
-                id="otp"
-                placeholder="Enter verification code"
-                value={otp}
-                onChange={(e) => setOtp(e.target.value)}
-              />
-            </div>
-            <Button
-              onClick={handleVerify}
-              className="w-full"
-              disabled={loading || !otp}
-            >
-              {loading ? (
-                <Loader2 size={16} className="animate-spin" />
-              ) : (
-                "Verify Email"
-              )}
-            </Button>
-            <Button
-              variant="outline"
-              onClick={handleResend}
-              className="w-full"
-              disabled={resendLoading}
-            >
-              {resendLoading ? (
-                <Loader2 size={16} className="animate-spin" />
-              ) : (
-                "Resend Code"
-              )}
-            </Button>
+    <Card className="max-w-md w-full">
+      <CardHeader>
+        <CardTitle>Verify Your Email</CardTitle>
+        <CardDescription>
+          Enter the verification code sent to {email}
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <div className="grid gap-4">
+          <div className="grid gap-2">
+            <Label htmlFor="otp">Verification Code</Label>
+            <Input
+              id="otp"
+              placeholder="Enter verification code"
+              value={otp}
+              onChange={(e) => setOtp(e.target.value)}
+            />
           </div>
-        </CardContent>
-      </Card>
+          <Button
+            onClick={handleVerify}
+            className="w-full"
+            disabled={loading || !otp}
+          >
+            {loading ? (
+              <Loader2 size={16} className="animate-spin" />
+            ) : (
+              "Verify Email"
+            )}
+          </Button>
+          <Button
+            variant="outline"
+            onClick={handleResend}
+            className="w-full"
+            disabled={resendLoading}
+          >
+            {resendLoading ? (
+              <Loader2 size={16} className="animate-spin" />
+            ) : (
+              "Resend Code"
+            )}
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+export default function VerifyEmailPage() {
+  return (
+    <main className="flex min-h-screen flex-col items-center justify-center p-4">
+      <Suspense
+        fallback={
+          <Card className="max-w-md w-full">
+            <CardHeader>
+              <CardTitle>Loading...</CardTitle>
+              <CardDescription>Please wait</CardDescription>
+            </CardHeader>
+            <CardContent className="flex justify-center">
+              <Loader2 className="h-6 w-6 animate-spin" />
+            </CardContent>
+          </Card>
+        }
+      >
+        <VerifyEmailForm />
+      </Suspense>
     </main>
   );
 }
