@@ -1,0 +1,1288 @@
+Next.js App Router Setup
+Oh, a little bleeding edge are we? We're big fans of app/ and server components, and we think you'll love what we've built 🙏
+
+Setting up your environment
+Install the packages
+npm
+pnpm
+yarn
+bun
+npm install uploadthing @uploadthing/react
+
+Copy
+Copied!
+Add env variables
+.env
+UPLOADTHING_TOKEN=... # A token for interacting with the SDK
+
+Copy
+Copied!
+If you don't already have a uploadthing secret key, sign up ↗ and create one from the dashboard! ↗
+
+Set Up A FileRouter
+Creating your first FileRoute
+All files uploaded to uploadthing are associated with a FileRoute. The following is a very minimalistic example, with a single FileRoute "imageUploader". Think of a FileRoute similar to an endpoint, it has:
+
+Permitted types ["image", "video", etc]
+Max file size
+How many files are allowed to be uploaded
+(Optional) input validation to validate client-side data sent to the route
+(Optional) middleware to authenticate and tag requests
+onUploadComplete callback for when uploads are completed
+To get full insight into what you can do with the FileRoutes, please refer to the File Router API.
+
+app/api/uploadthing/core.ts
+import { createUploadthing, type FileRouter } from "uploadthing/next";
+import { UploadThingError } from "uploadthing/server";
+const f = createUploadthing();
+const auth = (req: Request) => ({ id: "fakeId" }); // Fake auth function
+// FileRouter for your app, can contain multiple FileRoutes
+export const ourFileRouter = {
+  // Define as many FileRoutes as you like, each with a unique routeSlug
+  imageUploader: f({
+    image: {
+      /**
+       * For full list of options and defaults, see the File Route API reference
+       * @see https://docs.uploadthing.com/file-routes#route-config
+       */
+      maxFileSize: "4MB",
+      maxFileCount: 1,
+    },
+  })
+    // Set permissions and file types for this FileRoute
+    .middleware(async ({ req }) => {
+      // This code runs on your server before upload
+      const user = await auth(req);
+      // If you throw, the user will not be able to upload
+      if (!user) throw new UploadThingError("Unauthorized");
+      // Whatever is returned here is accessible in onUploadComplete as `metadata`
+      return { userId: user.id };
+    })
+    .onUploadComplete(async ({ metadata, file }) => {
+      // This code RUNS ON YOUR SERVER after upload
+      console.log("Upload complete for userId:", metadata.userId);
+      console.log("file url", file.url);
+      // !!! Whatever is returned here is sent to the clientside `onClientUploadComplete` callback
+      return { uploadedBy: metadata.userId };
+    }),
+} satisfies FileRouter;
+export type OurFileRouter = typeof ourFileRouter;
+
+Copy
+Copied!
+Create a Next.js API route using the FileRouter
+File path here doesn't matter, you can serve this from any route. We recommend serving it from /api/uploadthing.
+
+app/api/uploadthing/route.ts
+import { createRouteHandler } from "uploadthing/next";
+import { ourFileRouter } from "./core";
+// Export routes for Next App Router
+export const { GET, POST } = createRouteHandler({
+  router: ourFileRouter,
+  // Apply an (optional) custom config:
+  // config: { ... },
+});
+
+Copy
+Copied!
+See configuration options in server API reference
+
+Create The UploadThing Components
+We provide components to make uploading easier. We highly recommend re-exporting them with the types assigned, but you CAN import the components individually from @uploadthing/react instead.
+
+src/utils/uploadthing.ts
+import {
+  generateUploadButton,
+  generateUploadDropzone,
+} from "@uploadthing/react";
+import type { OurFileRouter } from "~/app/api/uploadthing/core";
+export const UploadButton = generateUploadButton<OurFileRouter>();
+export const UploadDropzone = generateUploadDropzone<OurFileRouter>();
+
+Copy
+Copied!
+Add UploadThing's Styles
+Tailwind v3
+Tailwind v4
+Not Tailwind
+Wrap your Tailwind config with the withUt helper. You can learn more about our Tailwind helper in the "Theming" page
+
+import { withUt } from "uploadthing/tw";
+export default withUt({
+  // Your existing Tailwind config
+  content: ["./src/**/*.{ts,tsx,mdx}"],
+  ...
+});
+
+Copy
+Copied!
+Mount A Button And Upload!
+Don't forget to add the "use client"; directive at the top of your file, since the UploadButton component needs to run on the client-side.
+
+app/example-uploader/page.tsx
+"use client";
+import { UploadButton } from "~/utils/uploadthing";
+export default function Home() {
+  return (
+    <main className="flex min-h-screen flex-col items-center justify-between p-24">
+      <UploadButton
+        endpoint="imageUploader"
+        onClientUploadComplete={(res) => {
+          // Do something with the response
+          console.log("Files: ", res);
+          alert("Upload Completed");
+        }}
+        onUploadError={(error: Error) => {
+          // Do something with the error.
+          alert(`ERROR! ${error.message}`);
+        }}
+      />
+    </main>
+  );
+}
+
+Copy
+Copied!
+💡 Optional
+Improving SSR
+UploadThing needs to get info from your server to get permissions info. Normally this means a loading state. We built an optional plugin to prevent that
+
+Without SSR Plugin
+No file chosenLoading...
+With SSR Plugin
+No file chosenReady
+Allowed content
+To add SSR hydration and avoid that loading state, simply render the <NextSSRPlugin /> hydration helper in the body of your root layout before the children.
+
+app/layout.tsx
+import { NextSSRPlugin } from "@uploadthing/react/next-ssr-plugin";
+import { extractRouterConfig } from "uploadthing/server";
+import { ourFileRouter } from "~/app/api/uploadthing/core";
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  return (
+    <html lang="en">
+      <body>
+        <NextSSRPlugin
+          /**
+           * The `extractRouterConfig` will extract **only** the route configs
+           * from the router to prevent additional information from being
+           * leaked to the client. The data passed to the client is the same
+           * as if you were to fetch `/api/uploadthing` directly.
+           */
+          routerConfig={extractRouterConfig(ourFileRouter)}
+        />
+        {children}
+      </body>
+    </html>
+  );
+}
+
+Copy
+Copied!
+If using the experimental ppr or dynamicIO features in Next.js 15, wrap the <NextSSRPlugin /> in suspense and call await connection() before rendering the component.
+
+app/layout.tsx
+import { connection } from "next/server"; 
+import { Suspense } from "react"; 
+async function UTSSR() {
+  await connection(); 
+  return <NextSSRPlugin routerConfig={extractRouterConfig(ourFileRouter)} />
+}
+export default function RootLayout(props) {
+  return (
+    <html>
+      {...}
+      <Suspense> // [!code ++]
+        <UTSSR />
+      </Suspense> // [!code ++]
+      {...}
+    </html>
+  )
+}
+
+Copy
+Copied!
+🎉 You're Done!
+Want to customize the components? Check out the "Theming" page
+
+Want to make your own components? Check out our useUploadThing hook
+
+
+
+
+Authentication & Security
+Authentication is a vital part in protecting your app from malicious usage. In this section we'll go over how to protect different parts of the UploadThing flow.
+
+Do not protect the entire /api/uploadthing route from being called by unauthenticated users. The endpoint is called as a webhook by our server and thus must be publically available.
+
+Protecting the endpoint from spoofing
+The callback request is like a webhook that is called by UploadThing when your file has been uploaded to the storage provider. The callback data is signed (HMAC SHA256) using the API key that uploaded the file. Since v6.7 of the Uploadthing SDK, the callback data is automatically verified before executing the callback. There is no additional work needed to protect the callback endpoint other than making sure you're on a version ^6.7 to ensure your endpoint is appropriately protected.
+
+Protecting unauthenticated users from uploading files
+You can protect unauthenticated users from uploading files via the .middleware() function in each file route. This makes it trivial to protect some file routes, and keep some public.
+
+Using your favorite authentication provider (or self-roll if that's your thing), retrieve the current user's session from the incoming request. If it's not valid, you can throw an error which will terminate the upload flow. In the following example, we have a public file route that is protected by rate limiting, and a protected route that allows any authenticated user to upload files:
+
+import { auth } from "auth";
+import { createUploadthing, UploadThingError } from "uploadthing/server";
+import { RateLimit } from "~/lib/ratelimit";
+const ratelimiter = new RateLimit({
+  /** rules */
+});
+export const uploadRouter = {
+  publicRoute: f({ image: {} })
+    .middleware(async ({ req }) => {
+      const limit = await ratelimiter.verify(req);
+      if (!limit.ok) {
+        throw new UploadThingError("Rate limit exceeded");
+      }
+      return {};
+    })
+    .onUploadComplete(() => {
+      /** ... */
+    }),
+  privateRoute: f({ image: {} })
+    .middleware(async ({ req }) => {
+      const session = await auth(req);
+      if (!session) {
+        throw new UploadThingError("You need to be logged in to upload files");
+      }
+      return { userId: session.user.id };
+    })
+    .onUploadComplete(() => {
+      /** ... */
+    }),
+};
+
+Copy
+Copied!
+By throwing an UploadThingError, the error message is automatically sent down to the client. If throwing other errors, you need an errorFormatter to control what is sent down to the client.
+
+
+
+
+Error Handling
+Error Formatting
+Added in v5.2
+
+You can customize the server-side behavior in your API handler's options by using an error formatter.
+
+By default, the client only receives a generic message like "Failed to run middleware" to avoid leaking any sensitive information. You can customize this behavior by specifying the errorFormatter option when you initialize your file route helper. An error formatter runs on the server and takes the original UploadThingError, and returns a JSON-serializable object. The error also includes a cause property which contains more information about the nature of the error and what caused the error to throw in the first place.
+
+You can also throw an UploadThingError inside your middleware which will send the error message to the client. All other error types will use a generic error message. Regardless of what error is thrown, you can still change the defaults with errorFormatter.
+
+import {
+  createUploadthing,
+  UploadThingError,
+  type FileRouter,
+} from "uploadthing/server";
+const f = createUploadthing();
+const auth = (req: Request) => ({ id: "fakeId" });
+export const ourFileRouter = {
+  imageUploader: f({ image: { maxFileSize: "4MB" } })
+    .middleware(async ({ req }) => {
+      const user = await auth(req);
+      if (!user) throw new Error(`Cant find user from req: ${req.toString()}`); // client onError will get "Failed to run middleware"
+      if (!user.id) throw new UploadThingError("No user ID"); // client onError will get "No user ID"
+      return { userId: user.id };
+    })
+    .onUploadComplete(async ({ metadata, file }) => {
+      console.log("Upload complete for userId:", metadata.userId);
+      console.log("file url", file.url);
+      return { uploadedBy: metadata.userId };
+    }),
+} satisfies FileRouter;
+export type OurFileRouter = typeof ourFileRouter;
+
+Copy
+Copied!
+UploadThingError
+For most users, throwing an UploadThingError("your message") will be enough. For advanced use cases, you can pass an options object for more control.
+
+type UploadThingErrorOptions<T> =
+  | {
+      /**
+   * ERROR_CODES:
+   *  BAD_REQUEST: 400,
+   *  NOT_FOUND: 404,
+   *  FORBIDDEN: 403,
+   *  INTERNAL_SERVER_ERROR: 500,
+   *  INTERNAL_CLIENT_ERROR: 500,
+      
+   *  // S3 specific
+   *  TOO_LARGE: 413,
+   *  TOO_SMALL: 400,
+   *  TOO_MANY_FILES: 400,
+   *  KEY_TOO_LONG: 400,
+      
+   *  // UploadThing specific
+   *  URL_GENERATION_FAILED: 500,
+   *  UPLOAD_FAILED: 500,
+   *  MISSING_ENV: 500,
+   *  FILE_LIMIT_EXCEEDED: 500,
+   * @default `INTERNAL_SERVER_ERROR`
+   */
+      code?: keyof typeof ERROR_CODES;
+      /**
+       * Your error message describing what happened
+       * @default `An unknown error occurred`
+       */
+      message?: string;
+      /**
+       * The original error that caused this, if any.
+       */
+      cause?: unkown;
+      /**
+       * Data associated with the error
+       */
+      data?: T;
+    }
+  | string;
+
+Copy
+Copied!
+If you're using Zod as an input parser, you can return information of what fields failed validation by checking if the cause is a ZodError. Zod provides a flatten method that returns a JSON-serializable object which we can return to the client.
+
+import * as z from "zod";
+import { createUploadthing } from "uploadthing/next";
+import type { FileRouter } from "uploadthing/next";
+const f = createUploadthing({
+  errorFormatter: (err) => {
+    return {
+      message: err.message,
+      zodError: err.cause instanceof z.ZodError ? err.cause.flatten() : null,
+    };
+  },
+});
+export const uploadRouter = {
+  withInput: f(["image"]).input(z.object({ foo: z.string() })),
+  //  ...
+} satisfies FileRouter;
+
+Copy
+Copied!
+Catching errors on the client
+You can catch errors on the client by using the onUploadError property on the premade components, or the useUploadthing hook. You can access the JSON object that you returned from your error formatter on the data property:
+
+<UploadButton
+  endpoint="withInput"
+  input={{ foo: userInput }}
+  onUploadError={(error) => {
+    console.log("Error: ", error);
+    const fieldErrors = error.data?.zodError?.fieldErrors;
+    //                              ^? typeToFlattenedError
+    setError(fieldErrors.foo[0] ?? "");
+  }}
+/>
+
+
+
+
+Theming
+Our prebuilt components are customizable so you can make them fit with the theme of your application.
+
+UploadButton Anatomy
+Simplified component structure:
+
+<div className={className} data-state={}>
+  <label
+    data-ut-element="button"
+    data-state={/* "ready" | "readying" | "uploading" */}
+  >
+    <input />
+    /button content goes here/
+  </label>
+  <div
+    data-ut-element="allowed-content"
+    data-state={/* "ready" | "readying" | "uploading" */}
+  >
+    /allowed content text goes here/
+  </div>
+</div>
+
+Copy
+Copied!
+UploadButton consists of three themeable elements: container, button, and allowed content.
+
+Note: UploadButton's button element is defined using label
+UploadButton anatomy
+UploadDropzone Anatomy
+Simplified component structure:
+
+<div className={className} data-state={/* "ready" | "readying" | "uploading" */}>
+  <svg data-ut-element="upload-icon" data-state={/* "ready" | "readying" | "uploading" */}>
+    ...
+  </svg>
+  <label data-ut-element="label" data-state={/* "ready" | "readying" | "uploading" */}>
+    {/* label content goes here */}
+    <input disabled={!ready} />
+  </label>
+  <div data-ut-element="allowed-content" data-state={/* "ready" | "readying" | "uploading" */}>
+    /allowed content goes here/
+  </div>
+  <button
+    data-ut-element="button"
+    data-state={/* "ready" | "readying" | "uploading" */}
+    disabled={isUploading}
+  >
+    {/* button content goes here */}
+  </button>
+</div>
+
+Copy
+Copied!
+UploadDropzone consists of five themeable elements: container, upload icon, label, button, and allowed content.
+
+Note: While in UploadButton the button element is defined using label, in UploadDropzone it is defined using button. As an abstraction layer, the button element in these two components has a special data attribute applied: data-ut-element="button".
+
+UploadDropzone anatomy
+Theming props
+className
+Both UploadButton and UploadDropzone accept a className prop. It allows you to pass any additional classes to the component. All classes that are being passed through this prop are going to be applied to the outermost element - container.
+
+appearance
+Both UploadButton and UploadDropzone accept an appearance prop. It accepts an object with keys that correspond to elements of a component. The interfaces for the appearance prop for UploadButton and UploadDropzone are:
+
+type StyleField =
+  | string
+  | CSSProperties
+  | ((args: CallbackArguments) => string | CSSProperties);
+type UploadButtonProps = {
+  /* rest of props */
+  appearance?: {
+    container?: StyleField;
+    button?: StyleField;
+    allowedContent?: StyleField;
+  };
+};
+type UploadDropzoneProps = {
+  /* rest of props */
+  appearance?: {
+    container?: StyleField;
+    uploadIcon?: StyleField;
+    label?: StyleField;
+    allowedContent?: StyleField;
+    button?: StyleField;
+  };
+};
+
+Copy
+Copied!
+where the CallbackArguments is defined as (depending on the component):
+
+type ButtonCallbackArguments = {
+  ready: boolean;
+  isUploading: boolean;
+  uploadProgress: number;
+  fileTypes: string[];
+  files: File[];
+};
+type DropzoneCallbackArguments = {
+  ready: boolean;
+  isUploading: boolean;
+  uploadProgress: number;
+  fileTypes: string[];
+  isDragActive: boolean;
+  files: File[];
+};
+
+Copy
+Copied!
+For Signal-based frameworks, such as Solid.js ↗, the attributes of the interfaces are getter-methods. For example, the ButtonCallbackArguments.ready: boolean property is a getter-method ButtonCallbackArguments.ready(): boolean in Solid.js.
+
+Theming with TailwindCSS
+If some classes are not working as expected, you may have to override the default class merger to use something like tailwind-merge ↗:
+
+import { twMerge } from 'tailwind-merge'
+import { UploadButton } from '~/lib/uploadthing'
+export function Page() {
+  return (
+    <UploadButton 
+      ...
+      config={{ cn: twMerge }}
+    />
+  )
+}
+
+Copy
+Copied!
+Configuring TailwindCSS
+Tailwind v3
+Tailwind v4
+To leverage the best developer experience, we strongly recommend wrapping your Tailwind config with our utility function withUt. This utility function adds additional classes and variants used to style our components.
+
+In addition, it also automatically sets the content option to include all the necessary classes that the components use. This allows you to avoid having duplicated styles in your bundle. Therefore, when using withUt, you should not import our stylesheet into your app. If you choose not to use withUt, you have to import the default stylesheet to make the components look right.
+
+tailwind.config.ts
+tailwind.config.js
+import { withUt } from "uploadthing/tw";
+export default withUt({
+  // your config goes here
+});
+
+Copy
+Copied!
+If you're not wrapping your config as shown above, you have to import our stylesheet into your app. Otherwise, components will not look right.
+
+import "@uploadthing/react/styles.css";
+// ...
+
+Copy
+Copied!
+Style using the className prop
+className accepts any classes and will merge them using tailwind-merge, meaning you can pass any class you like and it will be applied correctly, overriding the default styles if necessary.
+
+The withUt wrapper adds custom variants that you can leverage to easily target different elements of the component and its state:
+
+Variant	Description
+ut-button:	Applied to the button element.
+ut-allowed-content:	Applied to the allowed content element.
+ut-label:	Applied to the label element.
+ut-upload-icon:	Applied to the upload icon element.
+ut-readying:	Applied to the container element when the component is readying.
+ut-ready:	Applied to the container element when the component is ready.
+ut-uploading:	Applied to the container element when the component is uploading.
+If you're not using the withUt wrapper, the state variants can be applied using data-[state="..."]:
+
+These variants and classes can be used in conjunction with each other to make component match your design in the exact way you want.
+
+<UploadButton
+    className="mt-4 ut-button:bg-red-500 ut-button:ut-readying:bg-red-500/50"
+               |    └─ applied to the button └─ applied to the button when readying
+               └─ applied to the container
+/>
+
+Copy
+Copied!
+No file chosenReady
+Allowed content
+No file chosenLoading...
+Allowed content
+<UploadDropzone
+    className="bg-slate-800 ut-label:text-lg ut-allowed-content:ut-uploading:text-red-300"
+               |            |                └─ applied to the allowed content when uploading
+               |            └─ applied to the label
+               └─ applied to the container
+/>
+
+Copy
+Copied!
+Choose a file or drag and drop
+Allowed content
+Ready
+Loading...
+Allowed content
+
+0%
+Style using the appearance prop
+If you're not using the withUt wrapper, or prefer splitting your styles up a bit, you can use the appearance prop to target the different elements of the component.
+
+<UploadButton
+  appearance={{
+    button:
+      "ut-ready:bg-green-500 ut-uploading:cursor-not-allowed rounded-r-none bg-red-500 bg-none after:bg-orange-400",
+    container: "w-max flex-row rounded-md border-cyan-300 bg-slate-800",
+    allowedContent:
+      "flex h-8 flex-col items-center justify-center px-2 text-white",
+  }}
+/>
+
+Copy
+Copied!
+No file chosen
+0%
+Allowed content
+No file chosenUpload files
+Allowed content
+Theming with custom classes
+className prop
+className prop accepts any classes so you can pass there anything you like. When it comes to custom classes, you can use data attributes to target specific elements of components.
+
+<UploadButton className="custom-class" />
+
+Copy
+Copied!
+/* applied to container */
+.custom-class {
+  background-color: none;
+}
+/* applied to button */
+.custom-class > *[data-ut-element="button"] {
+  font-size: 1.6rem;
+  color: rgb(0 0 0 / 1);
+  background-color: rgb(239 68 68 / 1);
+}
+/* applied to button when uploading */
+.custom-class > *[data-ut-element="button"][data-state="readying"] {
+  background-color: rgb(239 68 68 / 0.5);
+  color: rgb(0 0 0 / 0.5);
+  cursor: not-allowed;
+}
+/* applied to the button when uploading */
+.custom-class > *[data-ut-element="button"][data-state="uploading"] {
+  background-color: rgb(239 68 68 / 0.5);
+  color: rgb(0 0 0 / 0.5);
+  cursor: not-allowed;
+}
+/* applied to the upload indicator when uploading */
+.custom-class > *[data-ut-element="button"][data-state="uploading"]::after {
+  background-color: rgb(234 88 12 / 1);
+}
+
+Copy
+Copied!
+No file chosenReady
+Allowed content
+No file chosenReadying
+Allowed content
+No file chosen
+40%
+Allowed content
+appearance prop
+If you need, you can pass classes directly to specific elements of components or provide a callback that will be called with the current state of the component and will return a string
+
+<UploadButton
+  appearance={{
+    button({ ready, isUploading }) {
+      return `custom-button ${
+        ready ? "custom-button-ready" : "custom-button-not-ready"
+      } ${isUploading ? "custom-button-uploading" : ""}`;
+    },
+    container: "custom-container",
+    allowedContent: "custom-allowed-content",
+  }}
+/>
+
+Copy
+Copied!
+/* applied to container */
+.custom-container {
+  background-color: none;
+  margin-top: 1rem;
+}
+/* applied to container when readying */
+.custom-container[data-state="readying"] {
+  background-color: none;
+}
+/* applied to button */
+.custom-button {
+  font-size: 1.6rem;
+  color: rgb(0 0 0 / 1);
+  background-color: rgb(239 68 68 / 1);
+}
+/* applied to button when uploading */
+.custom-button-uploading {
+  background-color: rgb(239 68 68 / 0.5);
+  color: rgb(0 0 0 / 0.5);
+  cursor: not-allowed;
+}
+.custom-button-uploading::after {
+  background-color: rgb(234 88 12 / 1) !important;
+}
+/* applied to the button when ready */
+.custom-button-ready {
+  color: #ecfdf5;
+}
+/* applied to the button when not ready */
+.custom-button-not-ready {
+  background-color: rgb(239 68 68 / 0.5);
+  color: rgb(0 0 0 / 0.5);
+  cursor: not-allowed;
+}
+
+Copy
+Copied!
+No file chosenUpload files
+Allowed content
+No file chosenLoading...
+Allowed content
+No file chosen
+40%
+Allowed content
+Theming with inline styles
+appearance prop
+If you need, you can pass inline styles directly to specific elements of component or provide a callback that will be called with the current state of the component and will return a CSSProperties object
+
+<UploadButton
+  appearance={{
+    button({ ready, isUploading }) {
+      return {
+        fontSize: "1.6rem",
+        color: "black",
+        ...(ready && { color: "#ecfdf5" }),
+        ...(isUploading && { color: "#d1d5db" }),
+      };
+    },
+    container: {
+      marginTop: "1rem",
+    },
+    allowedContent: {
+      color: "#a1a1aa",
+    },
+  }}
+/>
+
+Copy
+Copied!
+No file chosenLoading...
+Allowed content
+No file chosenChoose File
+Allowed content
+No file chosen
+0%
+Allowed content
+Content customization
+To customize the content of UploadButton and UploadDropzone, you can use the content prop that accepts an object with the following shape:
+
+ReactNode in the type definitions below will be the equivalent depending on the framework you use, e.g. JSX.Element in Solid.js.
+
+type ContentField = ReactNode | ((args: CallbackArguments) => ReactNode);
+type UploadButtonProps = {
+  /* rest of props */
+  content?: {
+    button?: ContentField;
+    allowedContent?: ContentField;
+  };
+};
+type UploadDropzoneProps = {
+  /* rest of props */
+  content?: {
+    uploadIcon?: ContentField;
+    label?: ContentField;
+    allowedContent?: ContentField;
+    button?: ContentField;
+  };
+};
+
+Copy
+Copied!
+When you take over the content of an element, you get full responsibility to control the different states of the component. For example, if you customize the button element, we will not show a spinner when the component is uploading.
+
+If you're using svelte, checkout the svelte docs.
+
+Example
+<UploadButton
+  endpoint="mockRoute"
+  content={{
+    button({ ready }) {
+      if (ready) return <div>Upload stuff</div>;
+      return "Getting ready...";
+    },
+    allowedContent({ ready, fileTypes, isUploading }) {
+      if (!ready) return "Checking what you allow";
+      if (isUploading) return "Seems like stuff is uploading";
+      return `Stuff you can upload: ${fileTypes.join(", ")}`;
+    },
+  }}
+/>
+
+
+
+
+uploadthing/client
+The UploadThing Client module provides utilities for working files in your application and communicating with your backend file router.
+
+function
+Since 5.0
+uploadFiles
+This function is used to perform client side uploads by requesting presigned URLs from your backend file router, and then uploading the files to the storage provider.
+
+Use the genUploader factory function to generate a typed function that matches the signature of your file router, which will allow autocompletion and type checking on endpoint, route input and callback data types.
+
+import { genUploader } from "uploadthing/client";
+import type { UploadRouter } from "~/server/uploadthing";
+export const { uploadFiles } = genUploader<UploadRouter>();
+const response = await uploadFiles("routeEndpoint", {
+  files: [],
+});
+
+Copy
+Copied!
+Parameters
+The first parameter is the route endpoint to upload to, and the second parameter is an options object:
+
+The endpoint arg may be a string literal or a callback function:
+
+await uploadFiles((routeRegistry) => routeRegistry.routeEndpoint, { ... })
+
+Copy
+Copied!
+Using a callback function allows Go to Defintion on routeEndpoint to take you straight to your backend file route definition, which is not possible when using a string literal parameter.
+
+Name
+files
+Type
+File[]
+RequiredSince 5.0
+Description
+An array of files to upload.
+
+Name
+input
+Type
+TInput
+Since 5.0
+Description
+Input JSON data matching your validator set on the FileRoute to send with the request.
+
+Name
+headers
+Type
+HeadersInit | () => HeadersInit
+Since 5.1
+Description
+Headers to be sent along the request to request the presigned URLs. Useful for authentication outside full-stack framework setups.
+
+Name
+signal
+Type
+AbortSignal
+Since 6.7
+Description
+An abort signal to abort the upload.
+
+Name
+onUploadBegin
+Type
+({ file: string }) => void
+Since 5.4
+Description
+Callback function called after the presigned URLs have been retrieved, just before the file is uploaded. Called once per file.
+
+Name
+onUploadProgress
+Type
+({ file, progress }) => void
+Since 6.4
+Description
+Callback function that gets continuously called as the file is uploaded to the storage provider.
+
+Returns
+The function returns a Promise that resolves to an array of objects:
+
+Name
+name
+Type
+string
+Description
+The name of the file.
+
+Name
+size
+Type
+number
+Description
+The size of the file in bytes.
+
+Name
+type
+Type
+string
+Description
+The type of the file.
+
+Name
+key
+Type
+string | null
+Description
+The file key of the file.
+
+Name
+url
+Type
+string
+Description
+The url of the file.
+
+Name
+customId
+Type
+string | null
+Description
+The custom id of the file, if provided on upload.
+
+Name
+serverData
+Type
+Generic
+Description
+The data returned from the onUploadComplete callback on the file route. This will be null if RouteOptions.awaitServerData isn't enabled.
+
+function
+Since 7.0
+createUpload
+Create a resumable upload. Resumable uploads allows you to start an upload, pause it, and then resume it at a later time. As long as the presigned URL is valid, you can continue the upload from where it left off.
+
+As for uploadFiles, use the genUploader factory function to generate a typed function that matches the signature of your file router, which will allow autocompletion and type checking on endpoint, route input and callback data types.
+
+Due to difficulties integrating with React Native's Blob implementation, resumable uploads are currently not supported on React Native.
+
+import { genUploader } from "uploadthing/client";
+import type { UploadRouter } from "~/server/uploadthing";
+export const { createUpload } = genUploader<UploadRouter>();
+// Create the upload. The files will start uploading immediately.
+const { pauseUpload, resumeUpload, done } = createUpload("routeEndpoint", {
+  files: [],
+});
+// Pause the upload of a file
+pauseUpload(file);
+// Resume the upload of a file
+resumeUpload(file);
+// Await the completion of all files
+const files = await done();
+
+Copy
+Copied!
+Parameters
+The first parameter is the route endpoint to upload to, and the second parameter is an options object:
+
+Name
+files
+Type
+File[]
+RequiredSince 7.0
+Description
+An array of files to upload.
+
+Name
+input
+Type
+TInput
+Since 7.0
+Description
+Input JSON data matching your validator set on the FileRoute to send with the request.
+
+Name
+headers
+Type
+HeadersInit | () => HeadersInit
+Since 7.0
+Description
+Headers to be sent along the request to request the presigned URLs. Useful for authentication outside full-stack framework setups.
+
+Name
+onUploadProgress
+Type
+(progress) => void
+Since 7.0
+Description
+Callback function that gets continuously called as the file is uploaded to the storage provider.
+
+Returns
+Name
+pauseUpload
+Type
+(file?: File) => void
+Since 7.0
+Description
+Pause the upload of a file. If no file is provided, all files will be paused.
+
+Name
+resumeUpload
+Type
+(file?: File) => void
+Since 7.0
+Description
+Resume the upload of a file. If no file is provided, all files will be resumed.
+
+Name
+done
+Type
+(file?: File) => Promise<MaybeArray<UploadedFileResponse>>
+Since 7.0
+Description
+Await the completion of the upload of a file. If no file is provided, all files will be awaited. The returned object is the same as the one returned by uploadFiles. If a file is provided, the function returns an object, else it returns an array.
+
+function
+Since 6.0
+generateClientDropzoneAccept
+Generate an accepted object that can be passed to the accept prop of a useDropzone hook or Dropzone component.
+
+Parameters
+Name
+fileTypes
+Type
+string[]
+Required
+Description
+The route config to generate the accept props for.
+
+Returns
+object
+
+function
+Since 6.0
+generateMimeTypes
+Generate an array of accepted mime types given a route config.
+
+Parameters
+Name
+config
+Type
+ExpandedRouteConfig
+Required
+Description
+The route config to generate the accept props for.
+
+Returns
+string[]
+
+function
+Since 6.0
+generatePermittedFileTypes
+Utility function to generate accept props for a <input type="file"> element.
+
+Parameters
+Name
+config
+Type
+ExpandedRouteConfig
+Required
+Description
+The route config to generate the accept props for.
+
+Returns
+Name
+fileTypes
+Type
+string[]
+Description
+The route config to generate the accept props for.
+
+Name
+multiple
+Type
+boolean
+Description
+Whether the accept props should be for multiple files.
+
+function
+Since 6.11
+isValidSize
+This function is used to validate that a file is of a valid size given a route config.
+
+Parameters
+Name
+file
+Type
+File
+Required
+Description
+The size of the file to validate.
+
+Name
+maxSize
+Type
+number
+Required
+Description
+The maximum size of the file to validate.
+
+Returns
+boolean
+
+function
+Since 6.11
+isValidType
+This function is used to validate that a file is of a valid type given a route config.
+
+Parameters
+Name
+file
+Type
+File
+Required
+Description
+The type of the file to validate.
+
+Name
+allowedTypes
+Type
+string[]
+Required
+Description
+The allowed types of the file to validate.
+
+Returns
+boolean
+
+
+
+
+UploadThing Server
+Server bindings for UploadThing.
+
+function
+Since 5.0
+createUploadthing
+The helper function to create an UploadThing instance. MAKE SURE YOU IMPORT IT FROM THE RIGHT PLACE. The export name ensures your file routes' middleware functions are typed correctly.
+
+Next App Router
+Next Pages Dir
+SolidJS
+Express
+Fastify
+H3
+import { createUploadthing, type FileRouter } from "uploadthing/next";
+const f = createUploadthing();
+export const uploadRouter = {  };
+// ...
+f({  })
+  .middleware(({ req }) => {
+    //           ^? req: NextRequest
+    return {}
+  })
+
+Copy
+Copied!
+function
+Since 6.3
+createRouteHandler
+All adapters exports a createRouteHandler function that exposes your router to the world. By default, you should only have to pass your router to this function, although there are some extra configuration options available.
+
+The names of the exported createRouteHandler is different prior to v6.3.
+
+Next App Router
+Next Pages Dir
+SolidJS
+Express
+Fastify
+H3
+Remix
+import { createRouteHandler } from "uploadthing/next";
+import { uploadRouter } from "~/server/uploadthing.ts";
+export const { GET, POST } = createRouteHandler({
+  router: uploadRouter,
+  // config: { ... },
+});
+
+Copy
+Copied!
+Config Parameters
+You can configure the route handler either by passing a config object to the createRouteHandler function, or by setting them as environment variables. Environment variables follows the naming convention of UPLOADTHING_<NAME> ,where <NAME> is the name of the config option in constant case, e.g. UPLOADTHING_LOG_LEVEL. If both are set, the config object takes precedence.
+
+Name
+callbackUrl
+Type
+string
+Since 6.0
+Description
+The full, absolute URL to where your route handler is hosted. This is called via webhook after your file is uploaded. UploadThing attempts to automatically detect this value based on the request URL and headers. You can override this if the automatic detection fails.
+
+Name
+token
+Type
+string
+Default: env.UPLOADTHING_TOKENSince 7.0
+Description
+Your UploadThing token. You can find this on the UploadThing dashboard.
+
+Name
+logLevel
+Type
+Error | Warning | Info | Debug | Trace
+Default: InfoSince 7.0
+Description
+Enable more verbose logging.
+If using an older version of the SDK, levels might vary.
+
+Name
+logFormat
+Type
+json | logFmt | structured | pretty
+Default: pretty in development, else jsonSince 7.1
+Description
+What format log entries should be in. Read more about the log formats here ↗.
+
+Name
+isDev
+Type
+boolean
+Default: env.NODE_ENV === 'development'Since 6.3
+Description
+Used to determine whether to run dev hook or not
+
+Name
+fetch
+Type
+FetchEsque
+Default: globalThis.fetchSince 6.3
+Description
+Used to override the fetch implementation
+
+Name
+ingestUrl
+Type
+string
+Since 7.0
+Description
+The URL of the UploadThing Ingest API. Will be decoded from the token if not specified.
+
+This option should only be set for self-hosted instances or for testing.
+
+class
+Since 5.7
+UTApi
+See UTApi
+
+class
+Since 6.4
+UTFile
+A helper class to construct File ↗ in environments that don't support it natively.
+
+Also accepts a customId property to set a custom identifier for the file to be uploaded using UTApi.uploadFiles.
+
+Constructor
+Name
+parts
+Type
+BlobPart[]
+Required
+Description
+The parts of the file to be uploaded.
+
+Name
+name
+Type
+string
+Required
+Description
+The name of the file to be uploaded.
+
+Name
+opts.type
+Type
+string
+Since 6.4
+Description
+The type of the file to be uploaded.
+
+Name
+opts.customId
+Type
+string
+Since 6.4
+Description
+A custom identifier for the file to be uploaded using UTApi.uploadFiles.
+
+Name
+opts.lastModified
+Type
+number
+Since 6.4
+Description
+The last modified time of the file to be uploaded.
+
+Example
+import { UTApi, UTFile } from "uploadthing/server";
+const utapi = new UTApi();
+const file = new UTFile(["foo"], "foo.txt", { customId: "foo" });
+const response = await utapi.uploadFiles([file]);
+
+Copy
+Copied!

@@ -1,6 +1,7 @@
 import { getServerSession } from "@/lib/auth-server";
-import { ProfileCard } from "@/components/dashboard/profile-card";
 import { PageHeader } from "@/components/page-header";
+import { FileUpload } from "@/components/file-upload";
+
 export default async function DashboardPage() {
   const session = await getServerSession();
 
@@ -14,7 +15,10 @@ export default async function DashboardPage() {
           </h2>
         </div>
 
-        <ProfileCard user={session!.user} />
+        <div className="mt-8">
+          <h2 className="text-xl font-semibold mb-4">File Upload</h2>
+          <FileUpload />
+        </div>
       </div>
     </>
   );

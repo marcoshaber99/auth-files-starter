@@ -2,13 +2,16 @@
 
 A modern, full-stack starter template for authentication and file upload functionality with Next.js.
 
-## Features ( so far )
+## Features
 
 - 🔐 Authentication with email/password and GitHub
 - ✉️ Email verification with OTP
 - 🎨 Dark mode
 - 📱 Collapsible sidebar w/ Shadcn/ui
 - 📊 Dashboard
+- 📁 File uploads with UploadThing
+  - Image upload support
+  - File deletion
 
 ## Stack
 
@@ -17,7 +20,7 @@ A modern, full-stack starter template for authentication and file upload functio
 - Drizzle + PostgreSQL
 - React Email + Resend
 - Shadcn/ui + Tailwind
-- UploadThing (coming soon)
+- UploadThing
 
 ## Progress
 
@@ -25,7 +28,10 @@ A modern, full-stack starter template for authentication and file upload functio
 - [x] Email Verification OTP
 - [x] GitHub Auth
 - [x] Simple Dashboard w/ Collapsible Sidebar (Shadcn)
-- [ ] File Uploads with UploadThing
+- [x] File Uploads with UploadThing
+  - [x] Image upload support
+  - [x] File deletion
+  - [x] Database integration
 
 ## Setup
 
@@ -52,14 +58,12 @@ EMAIL_FROM_ADDRESS=
 EMAIL_FROM_NAME=
 GITHUB_CLIENT_ID=
 GITHUB_CLIENT_SECRET=
+UPLOADTHING_TOKEN=
 ```
 
 ## Screenshots
 
-<div style="display: flex; gap: 10px;">
-  <img src="./public/readme-screenshots/sign-in-page.png" width="400" alt="Sign In" />
   <img src="./public/readme-screenshots/dashboard.png" width="400" alt="Dashboard" />
-</div>
 
 ## Contributing
 
